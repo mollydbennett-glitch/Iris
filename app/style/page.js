@@ -108,8 +108,8 @@ export default function StylePage() {
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
                 {o.items.map((it) => (
                   <div key={it.id} style={{ width: 96 }}>
-                    <div style={{ width: 96, height: 120, background: 'var(--gold-soft)', borderRadius: 3, overflow: 'hidden', border: '1px solid var(--line)' }}>
-                      <img src={it.image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                    <div style={{ width: 96, height: 120, background: it.cutout_url ? '#fff' : 'var(--gold-soft)', borderRadius: 3, overflow: 'hidden', border: '1px solid var(--line)' }}>
+                      <img src={it.cutout_url || it.image_url} alt="" style={{ width: '100%', height: '100%', objectFit: it.cutout_url ? 'contain' : 'cover', padding: it.cutout_url ? 6 : 0, display: 'block' }} />
                     </div>
                     <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 4, textTransform: 'capitalize' }}>
                       {it.subcategory || it.category}
