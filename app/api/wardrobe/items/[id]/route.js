@@ -3,6 +3,14 @@ import { getSupabaseAdmin } from '@/lib/supabase';
 
 export const runtime = 'nodejs';
 
+function storagePathFromUrl(url) {
+  if (!url) return null;
+  const marker = '/wardrobe/';
+  const i = url.indexOf(marker);
+  if (i === -1) return null;
+  return url.slice(i + marker.length).split('?')[0];
+}
+
 // Read a single item (for the detail page).
 export async function GET(request, { params }) {
   try {
@@ -28,8 +36,6 @@ export async function PATCH(request, { params }) {
     const { id } = await params;
     const body = await request.json();
 
-    // Mirror the corrected fields into both the top-level columns and
-    // user_verified_tags so the gallery and the engine read clean data.
     const update = {
       category: body.category ?? null,
       subcategory: body.subcategory ?? null,
@@ -58,19 +64,38 @@ export async function PATCH(request, { params }) {
   }
 }
 
-// Soft-delete: remove from the active wardrobe but keep the row, so we can
-// later route "removed" items into donate / sell / archive views.
+// DELETE with ?mode=hard permanently removes the row AND its stored images.
+// Default (soft) just flips is_active=false so it can be recovered / routed to
+// donate/sell later.
 export async function DELETE(request, { params }) {
   try {
     const { id } = await params;
     const supabaseAdmin = getSupabaseAdmin();
+    const mode = new URL(request.url).searchParams.get('mode');
+
+    if (mode === 'hard') {
+      // Look up the image paths so we can also clear storage.
+      const { data: row } = await supabaseAdmin
+        .from('wardrobe_items')
+        .select('image_url, cutout_url')
+        .eq('id', id)
+        .single();
+
+      const paths = [storagePathFromUrl(row?.image_url), storagePathFromUrl(row?.cutout_url)].filter(Boolean);
+      if (paths.length) {
+        await supabaseAdmin.storage.from('wardrobe').remove(paths);
+      }
+
+      const { error } = await supabaseAdmin.from('wardrobe_items').delete().eq('id', id);
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ ok: true, hard: true });
+    }
+
     const { error } = await supabaseAdmin
       .from('wardrobe_items')
       .update({ is_active: false })
       .eq('id', id);
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ ok: true });
   } catch (err) {
     return NextResponse.json({ error: err.message || 'Unknown error' }, { status: 500 });
