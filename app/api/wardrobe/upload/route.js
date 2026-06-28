@@ -32,6 +32,14 @@ export async function POST(request) {
       buffer = Buffer.from(out);
     }
 
+    // Shrink so stored files stay well under storage size limits.
+    {
+      const { Jimp } = await import('jimp');
+      const img = await Jimp.read(buffer);
+      if (img.width > 1400 || img.height > 1400) img.scaleToFit({ w: 1400, h: 1400 });
+      buffer = await img.getBuffer('image/jpeg', { quality: 80 });
+    }
+
     const base64 = buffer.toString('base64');
     const mediaType = 'image/jpeg';
 
