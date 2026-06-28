@@ -62,6 +62,7 @@ export async function POST(request) {
         user_id: PHASE1_USER_ID,
         image_url: imageUrl,
         category: tags.category ?? null,
+        subcategory: tags.subcategory ?? null,
         color: tags.color ?? null,
         fabric: tags.fabric ?? null,
         season: tags.season ?? null,
