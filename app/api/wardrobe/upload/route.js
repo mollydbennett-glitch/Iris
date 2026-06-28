@@ -3,7 +3,16 @@ import { getSupabaseAdmin, PHASE1_USER_ID } from '@/lib/supabase';
 import { tagClothingImage } from '@/lib/claude';
 
 export const runtime = 'nodejs';
-export const maxDuration = 60; // give the vision call room (per-function, explicit)
+export const maxDuration = 60; // give the vision + convert room (per-function, explicit)
+
+// Detect HEIC/HEIF by its file signature (the "ftyp" box brand), which is more
+// reliable than the browser-reported MIME type.
+function isHeic(buffer) {
+  if (buffer.length < 12) return false;
+  if (buffer.toString('ascii', 4, 8) !== 'ftyp') return false;
+  const brand = buffer.toString('ascii', 8, 12).toLowerCase();
+  return ['heic', 'heix', 'hevc', 'heim', 'heis', 'hevm', 'hevs', 'mif1', 'msf1', 'heif'].includes(brand);
+}
 
 export async function POST(request) {
   try {
@@ -14,10 +23,16 @@ export async function POST(request) {
       return NextResponse.json({ error: 'No image provided.' }, { status: 400 });
     }
 
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
+    let buffer = Buffer.from(await file.arrayBuffer());
+
+    // If the phone sent a HEIC straight through, convert it to JPEG here.
+    if (isHeic(buffer)) {
+      const heicConvert = (await import('heic-convert')).default;
+      const out = await heicConvert({ buffer, format: 'JPEG', quality: 0.85 });
+      buffer = Buffer.from(out);
+    }
+
     const base64 = buffer.toString('base64');
-    // The client resizes everything to JPEG before sending.
     const mediaType = 'image/jpeg';
 
     // 1) Ask Claude to tag the item.
