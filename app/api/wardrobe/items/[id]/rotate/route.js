@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin, PHASE1_USER_ID } from '@/lib/supabase';
-import { Jimp } from 'jimp';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -34,6 +33,7 @@ export async function POST(request, { params }) {
     const { data: blob, error: dlErr } = await supabaseAdmin.storage.from('wardrobe').download(oldPath);
     if (dlErr || !blob) return NextResponse.json({ error: dlErr?.message || 'Download failed' }, { status: 500 });
 
+    const { Jimp } = await import('jimp');
     const image = await Jimp.read(Buffer.from(await blob.arrayBuffer()));
     image.rotate(Number(degrees) || 90);
     if (image.width > 1400 || image.height > 1400) image.scaleToFit({ w: 1400, h: 1400 });
