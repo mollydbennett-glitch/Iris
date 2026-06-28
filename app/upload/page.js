@@ -154,13 +154,10 @@ export default function UploadPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ degrees }),
       });
-      if (!res.ok) {
-        const d = await res.json();
-        throw new Error(d.error || 'Rotate failed');
-      }
-      // Same URL, new bytes — bump rotatedAt so the <img> reloads.
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Rotate failed');
       setItems((prev) =>
-        prev.map((x) => (x.id === it.id ? { ...x, rotatedAt: Date.now(), _status: 'idle' } : x))
+        prev.map((x) => (x.id === it.id ? { ...x, image_url: data.image_url, _status: 'idle' } : x))
       );
     } catch (err) {
       setStatus(it.id, 'error');
@@ -197,7 +194,7 @@ export default function UploadPage() {
   }
 
   function imgSrc(it) {
-    return it.rotatedAt ? `${it.image_url.split('?')[0]}?t=${it.rotatedAt}` : it.image_url;
+    return it.image_url;
   }
 
   return (
