@@ -34,10 +34,11 @@ export async function POST(request, { params }) {
     if (dlErr || !blob) return NextResponse.json({ error: dlErr?.message || 'Download failed' }, { status: 500 });
 
     const inputBuffer = Buffer.from(await blob.arrayBuffer());
-    const cutout = await removeBackground(inputBuffer);
-    if (!cutout) {
-      return NextResponse.json({ error: 'Background removal unavailable (check Photoroom key/credits).' }, { status: 502 });
+    const rb = await removeBackground(inputBuffer);
+    if (!rb.ok) {
+      return NextResponse.json({ error: rb.message }, { status: 502 });
     }
+    const cutout = rb.buffer;
 
     const cutoutPath = path.replace(/^(.*)\/([^/]+)\.[^.]+$/, '$1/cutouts/$2.png');
     const { error: upErr } = await supabaseAdmin.storage
