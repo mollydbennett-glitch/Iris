@@ -1,250 +1,182 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useState, useEffect, useMemo } from 'react';
 
-const CATEGORIES = ['top', 'bottom', 'dress', 'outerwear', 'shoes', 'bag', 'accessory'];
-const SILHOUETTES = ['fitted', 'relaxed', 'oversized', 'structured', 'flowy', 'tailored'];
-const PATTERNS = ['solid', 'striped', 'plaid', 'floral', 'print', 'textured', 'other'];
 const SEASONS = ['spring', 'summer', 'fall', 'winter'];
-const SUBCATEGORIES = {
-  top: ['blouse', 't-shirt', 'sweater', 'tank', 'button-down', 'bodysuit', 'cami'],
-  bottom: ['jeans', 'trousers', 'skirt', 'shorts', 'leggings'],
-  dress: ['mini', 'midi', 'maxi', 'gown', 'slip'],
-  outerwear: ['blazer', 'coat', 'jacket', 'cardigan', 'vest'],
-  shoes: ['heels', 'flats', 'boots', 'sneakers', 'sandals', 'loafers'],
-  bag: ['tote', 'crossbody', 'clutch', 'shoulder', 'backpack'],
-  accessory: ['belt', 'scarf', 'hat', 'jewelry', 'sunglasses'],
-};
 
-export default function ItemDetailPage() {
-  const { id } = useParams();
-  const router = useRouter();
+function seasonList(season) {
+  if (!season) return [];
+  return Object.keys(season).filter((k) => season[k]);
+}
 
-  const [it, setIt] = useState(null);
+export default function WardrobePage() {
+  const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [status, setStatus] = useState('idle'); // idle | saving | saved | error
-  const [rotating, setRotating] = useState(false);
-  const [rotatedAt, setRotatedAt] = useState(0);
   const [error, setError] = useState('');
+
+  const [fCategory, setFCategory] = useState('');
+  const [fSeason, setFSeason] = useState('');
+  const [fColor, setFColor] = useState('');
+  const [fVibe, setFVibe] = useState('');
+
+  const [cutoutBusy, setCutoutBusy] = useState(false);
+  const [cutoutProgress, setCutoutProgress] = useState(null);
 
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch(`/api/wardrobe/items/${id}`);
+        const res = await fetch('/api/wardrobe/items');
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Failed to load');
-        setIt(normalize(data.item));
+        setItems(data.items);
       } catch (err) {
         setError(err.message);
       } finally {
         setLoading(false);
       }
     })();
-  }, [id]);
+  }, []);
 
-  function normalize(item) {
-    return {
-      id: item.id,
-      image_url: item.image_url,
-      cutout_url: item.cutout_url || null,
-      category: item.category || '',
-      subcategory: item.subcategory || '',
-      colorPrimary: item.color?.primary || '',
-      pattern: item.color?.pattern || 'solid',
-      fabric: item.fabric || '',
-      silhouette: item.silhouette || '',
-      season: item.season || { spring: false, summer: false, fall: false, winter: false },
-      styleVibe: Array.isArray(item.style_vibe) ? item.style_vibe.join(', ') : '',
-      notes: item.ai_tags?.notes || '',
-    };
-  }
+  const categories = useMemo(() => [...new Set(items.map((i) => i.category).filter(Boolean))].sort(), [items]);
+  const colors = useMemo(() => [...new Set(items.map((i) => i.color?.primary).filter(Boolean))].sort(), [items]);
+  const vibes = useMemo(() => [...new Set(items.flatMap((i) => (Array.isArray(i.style_vibe) ? i.style_vibe : [])).filter(Boolean))].sort(), [items]);
 
-  function set(patch) {
-    setIt((prev) => ({ ...prev, ...patch }));
-    setStatus('idle');
-  }
-  function changeCategory(category) {
-    const valid = SUBCATEGORIES[category] || [];
-    setIt((prev) => ({ ...prev, category, subcategory: valid.includes(prev.subcategory) ? prev.subcategory : '' }));
-    setStatus('idle');
-  }
-  function toggleSeason(key) {
-    setIt((prev) => ({ ...prev, season: { ...prev.season, [key]: !prev.season[key] } }));
-    setStatus('idle');
-  }
+  const filtered = items.filter((it) => {
+    if (fCategory && it.category !== fCategory) return false;
+    if (fSeason && !(it.season && it.season[fSeason])) return false;
+    if (fColor && it.color?.primary !== fColor) return false;
+    if (fVibe && !(Array.isArray(it.style_vibe) && it.style_vibe.includes(fVibe))) return false;
+    return true;
+  });
 
-  async function rotate(degrees) {
-    setRotating(true);
-    try {
-      const res = await fetch(`/api/wardrobe/items/${id}/rotate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ degrees }),
-      });
-      if (!res.ok) {
-        const d = await res.json();
-        throw new Error(d.error || 'Rotate failed');
+  const anyFilter = fCategory || fSeason || fColor || fVibe;
+  function clearFilters() { setFCategory(''); setFSeason(''); setFColor(''); setFVibe(''); }
+
+  const needCutouts = items.filter((it) => !it.cutout_url);
+
+  async function makeCutouts() {
+    setCutoutBusy(true);
+    setError('');
+    const todo = items.filter((it) => !it.cutout_url);
+    let firstError = '';
+    let done = 0;
+    for (let i = 0; i < todo.length; i++) {
+      setCutoutProgress(`${i + 1} / ${todo.length}`);
+      try {
+        const res = await fetch(`/api/wardrobe/items/${todo[i].id}/cutout`, { method: 'POST' });
+        const data = await res.json();
+        if (res.ok && data.cutout_url) {
+          done++;
+          setItems((prev) => prev.map((x) => (x.id === todo[i].id ? { ...x, cutout_url: data.cutout_url } : x)));
+        } else if (!firstError) {
+          firstError = data.error || `HTTP ${res.status}`;
+          break; // if the first one fails, stop — they'll all fail the same way
+        }
+      } catch (err) {
+        if (!firstError) { firstError = err.message; break; }
       }
-      setRotatedAt(Date.now());
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setRotating(false);
     }
+    setCutoutBusy(false);
+    setCutoutProgress(null);
+    if (firstError) setError(`Background removal failed — ${firstError}`);
   }
 
-  async function save() {
-    setStatus('saving');
-    const body = {
-      category: it.category,
-      subcategory: it.subcategory,
-      color: { primary: it.colorPrimary, secondary: null, pattern: it.pattern },
-      fabric: it.fabric,
-      silhouette: it.silhouette,
-      season: it.season,
-      style_vibe: it.styleVibe.split(',').map((s) => s.trim()).filter(Boolean),
-    };
-    try {
-      const res = await fetch(`/api/wardrobe/items/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) {
-        const d = await res.json();
-        throw new Error(d.error || 'Save failed');
-      }
-      setStatus('saved');
-    } catch (err) {
-      setStatus('error');
-      setError(err.message);
-    }
-  }
-
-  async function remove() {
+  async function removeItem(e, it) {
+    e.preventDefault();
+    e.stopPropagation();
     if (!window.confirm('Remove this piece from your wardrobe?')) return;
+    setItems((prev) => prev.filter((x) => x.id !== it.id));
     try {
-      const res = await fetch(`/api/wardrobe/items/${id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/wardrobe/items/${it.id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Delete failed');
-      router.push('/wardrobe');
     } catch (err) {
+      setItems((prev) => [it, ...prev]);
       setError(err.message);
     }
   }
 
-  async function removeHard() {
-    if (!window.confirm('Permanently delete this piece and its photo? This cannot be undone.')) return;
-    try {
-      const res = await fetch(`/api/wardrobe/items/${id}?mode=hard`, { method: 'DELETE' });
-      if (!res.ok) throw new Error('Delete failed');
-      router.push('/wardrobe');
-    } catch (err) {
-      setError(err.message);
-    }
-  }
-
-  if (loading) return <p className="lede">Loading…</p>;
-  if (!it) return <p className="status err" style={{ display: 'block' }}>{error || 'Item not found.'}</p>;
-
-  const subs = SUBCATEGORIES[it.category] || [];
-  const showCutout = it.cutout_url && !rotatedAt;
-  const imgSrc = rotatedAt ? `${it.image_url.split('?')[0]}?t=${rotatedAt}` : (it.cutout_url || it.image_url);
+  const selectStyle = { padding: '7px 10px', border: '1px solid var(--line)', borderRadius: 2, background: '#fff', color: 'var(--ink)', fontSize: 14 };
 
   return (
     <div>
-      <a href="/wardrobe" className="navlink" style={{ color: 'var(--ink-soft)' }}>← Back to wardrobe</a>
+      <h1 className="display">Wardrobe</h1>
+      <p className="lede">
+        {loading ? 'Loading your closet…' : `${filtered.length}${anyFilter ? ` of ${items.length}` : ''} piece${filtered.length === 1 ? '' : 's'}.`}
+      </p>
 
-      <div style={{ marginTop: 18, display: 'flex', flexWrap: 'wrap', gap: 28 }}>
-        <div style={{ flex: '0 0 320px', maxWidth: 320 }}>
-          <div style={{ width: '100%', aspectRatio: '3 / 4', background: showCutout ? '#fff' : 'var(--gold-soft)', borderRadius: 4, overflow: 'hidden', border: '1px solid var(--line)' }}>
-            <img src={imgSrc} alt="" style={{ width: '100%', height: '100%', objectFit: showCutout ? 'contain' : 'cover', padding: showCutout ? 12 : 0, display: 'block' }} />
-          </div>
-          <div className="rotate-row" style={{ justifyContent: 'flex-start' }}>
-            <button className="rotate-btn" onClick={() => rotate(270)} disabled={rotating} title="Rotate left">↺</button>
-            <button className="rotate-btn" onClick={() => rotate(90)} disabled={rotating} title="Rotate right">↻</button>
-            {rotating && <span className="spinner" />}
-          </div>
+      {error && <p className="status err" style={{ display: 'block' }}>{error}</p>}
+
+      {!loading && items.length > 0 && (
+        <div style={{ marginTop: 18, display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
+          <select style={selectStyle} value={fCategory} onChange={(e) => setFCategory(e.target.value)}>
+            <option value="">All categories</option>
+            {categories.map((c) => <option key={c} value={c}>{c}</option>)}
+          </select>
+          <select style={selectStyle} value={fSeason} onChange={(e) => setFSeason(e.target.value)}>
+            <option value="">All seasons</option>
+            {SEASONS.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+          <select style={selectStyle} value={fColor} onChange={(e) => setFColor(e.target.value)}>
+            <option value="">All colors</option>
+            {colors.map((c) => <option key={c} value={c}>{c}</option>)}
+          </select>
+          <select style={selectStyle} value={fVibe} onChange={(e) => setFVibe(e.target.value)}>
+            <option value="">All vibes</option>
+            {vibes.map((v) => <option key={v} value={v}>{v}</option>)}
+          </select>
+          {anyFilter && <button className="btn btn-ghost" style={{ padding: '7px 14px' }} onClick={clearFilters}>Clear</button>}
         </div>
+      )}
 
-        <div style={{ flex: '1 1 280px', minWidth: 260, maxWidth: 420 }}>
-          <div className="field">
-            <label>Category</label>
-            <select value={it.category} onChange={(e) => changeCategory(e.target.value)}>
-              <option value="">—</option>
-              {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-            </select>
-          </div>
-          <div className="field">
-            <label>Subcategory</label>
-            <select value={it.subcategory} onChange={(e) => set({ subcategory: e.target.value })} disabled={!it.category}>
-              <option value="">{it.category ? '—' : 'pick a category first'}</option>
-              {subs.map((s) => <option key={s} value={s}>{s}</option>)}
-              {it.subcategory && !subs.includes(it.subcategory) && <option value={it.subcategory}>{it.subcategory}</option>}
-            </select>
-          </div>
-          <div className="field">
-            <label>Color</label>
-            <input value={it.colorPrimary} onChange={(e) => set({ colorPrimary: e.target.value })} />
-          </div>
-          <div className="field">
-            <label>Pattern</label>
-            <select value={it.pattern} onChange={(e) => set({ pattern: e.target.value })}>
-              {PATTERNS.map((p) => <option key={p} value={p}>{p}</option>)}
-            </select>
-          </div>
-          <div className="field">
-            <label>Fabric</label>
-            <input value={it.fabric} onChange={(e) => set({ fabric: e.target.value })} />
-          </div>
-          <div className="field">
-            <label>Silhouette</label>
-            <select value={it.silhouette} onChange={(e) => set({ silhouette: e.target.value })}>
-              <option value="">—</option>
-              {SILHOUETTES.map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </div>
-          <div className="field">
-            <label>Season</label>
-            <div className="seasons">
-              {SEASONS.map((s) => (
-                <label key={s}>
-                  <input type="checkbox" checked={!!it.season[s]} onChange={() => toggleSeason(s)} />
-                  {s}
-                </label>
-              ))}
-            </div>
-          </div>
-          <div className="field">
-            <label>Style vibe (comma separated)</label>
-            <input value={it.styleVibe} onChange={(e) => set({ styleVibe: e.target.value })} />
-          </div>
-          {it.notes && <p className="note">Iris: {it.notes}</p>}
-
-          <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 10 }}>
-            <button className="btn" onClick={save} disabled={status === 'saving'}>
-              {status === 'saving' ? 'Saving…' : 'Save changes'}
-            </button>
-            {status === 'saved' && <span className="status saved">✓ Saved</span>}
-            {status === 'error' && <span className="status err">Couldn’t save</span>}
-            <button
-              onClick={remove}
-              style={{ marginLeft: 'auto', background: 'none', border: 'none', color: 'var(--ink-soft)', cursor: 'pointer', fontSize: 13 }}
-            >
-              Remove from wardrobe
-            </button>
-          </div>
-          <div style={{ marginTop: 10, textAlign: 'right' }}>
-            <button
-              onClick={removeHard}
-              style={{ background: 'none', border: 'none', color: 'var(--bad)', cursor: 'pointer', fontSize: 12 }}
-              title="Permanently deletes the item and its photo"
-            >
-              Delete permanently
-            </button>
-          </div>
+      {!loading && needCutouts.length > 0 && (
+        <div style={{ marginTop: 14 }}>
+          <button className="btn btn-ghost" style={{ padding: '8px 14px' }} onClick={makeCutouts} disabled={cutoutBusy}>
+            {cutoutBusy ? <><span className="spinner" />&nbsp; Removing backgrounds {cutoutProgress}</> : `Clean up backgrounds (${needCutouts.length})`}
+          </button>
+          <p className="note" style={{ marginTop: 6 }}>Removes the photo backgrounds for a clean catalog look.</p>
         </div>
-      </div>
+      )}
+
+      {!loading && items.length === 0 && (
+        <div style={{ marginTop: 24 }}><a href="/upload" className="btn">Add items</a></div>
+      )}
+
+      {!loading && filtered.length > 0 && (
+        <div style={{ marginTop: 24, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))', gap: 18 }}>
+          {filtered.map((it) => {
+            const seasons = seasonList(it.season);
+            const hasCutout = !!it.cutout_url;
+            const src = it.cutout_url || it.image_url;
+            return (
+              <a key={it.id} href={`/wardrobe/${it.id}`}
+                style={{ position: 'relative', background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 4, overflow: 'hidden', textDecoration: 'none', color: 'var(--ink)', display: 'block' }}>
+                <button type="button" onClick={(e) => removeItem(e, it)} title="Remove from wardrobe"
+                  style={{ position: 'absolute', top: 8, right: 8, width: 26, height: 26, borderRadius: '50%', border: 'none', background: 'rgba(26,23,20,0.6)', color: '#fff', fontSize: 15, lineHeight: 1, cursor: 'pointer', zIndex: 2 }}>×</button>
+                <div style={{ width: '100%', aspectRatio: '3 / 4', background: hasCutout ? '#fff' : 'var(--gold-soft)' }}>
+                  <img src={src} alt="" style={{ width: '100%', height: '100%', objectFit: hasCutout ? 'contain' : 'cover', padding: hasCutout ? 10 : 0, display: 'block' }} />
+                </div>
+                <div style={{ padding: '10px 12px 12px' }}>
+                  <div style={{ fontFamily: 'Georgia, serif', fontSize: 15, textTransform: 'capitalize' }}>
+                    {it.color?.primary ? `${it.color.primary} ` : ''}{it.subcategory || it.category || 'item'}
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 3, textTransform: 'capitalize' }}>
+                    {[it.category, it.fabric].filter(Boolean).join(' · ')}
+                  </div>
+                  {seasons.length > 0 && (
+                    <div style={{ marginTop: 7, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                      {seasons.map((s) => <span key={s} className="pill" style={{ marginRight: 0 }}>{s}</span>)}
+                    </div>
+                  )}
+                </div>
+              </a>
+            );
+          })}
+        </div>
+      )}
+
+      {!loading && items.length > 0 && filtered.length === 0 && (
+        <p className="lede" style={{ marginTop: 24 }}>No pieces match these filters.</p>
+      )}
     </div>
   );
 }
