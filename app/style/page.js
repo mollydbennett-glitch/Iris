@@ -22,26 +22,33 @@ function PositionedItem({ it, slot, z }) {
   );
 }
 
-// Editorial collage layout, modeled on the reference flat-lays:
-// big top-left garment, tall garment on the right, accessories clustered
-// lower-left, with slight overlaps so it reads styled, not catalog.
+// Two-column flat-lay modeled on the references: the bottom garment runs full
+// height on the right, the top garment fills the upper-left, and accessories
+// fill the lower-left so the frame stays full rather than half-empty.
 function FlatLay({ outfit }) {
   const items = outfit.items;
   const tops = items.filter((i) => ['top', 'dress', 'outerwear'].includes(i.category));
   const bottom = items.find((i) => i.category === 'bottom');
-  const heroTop = tops[0];
-  const secondTop = tops[1];
-  const used = new Set([heroTop, secondTop, bottom].filter(Boolean));
+
+  // Right column: the bottom garment, or a dress/top if there's no bottom.
+  const rightItem = bottom || tops[0];
+  const leftTop = bottom ? tops[0] : tops[1];
+  const used = new Set([rightItem, leftTop].filter(Boolean));
   const extras = items.filter((i) => !used.has(i));
 
-  // Lower-left cluster slots for accessories (shoes, bag, sunglasses, jewelry…).
-  const extraSlots = [
-    { left: '2%', top: '54%', width: '27%', height: '22%' },
-    { left: '28%', top: '64%', width: '28%', height: '26%' },
-    { left: '3%', top: '76%', width: '24%', height: '22%' },
-    { left: '31%', top: '44%', width: '18%', height: '15%' },
-    { left: '15%', top: '40%', width: '14%', height: '12%' },
-  ];
+  // Place accessories in the lower-left. Few items => one bigger row; more => a grid.
+  const n = extras.length;
+  const extraSlots = [];
+  if (n <= 2) {
+    const w = 40;
+    extras.forEach((_, i) => extraSlots.push({ left: `${6 + i * (w + 6)}%`, top: '56%', width: `${w}%`, height: '40%' }));
+  } else {
+    extras.forEach((_, i) => {
+      const col = i % 2;
+      const row = Math.floor(i / 2);
+      extraSlots.push({ left: `${2 + col * 25}%`, top: `${52 + row * 24}%`, width: '24%', height: '23%' });
+    });
+  }
 
   return (
     <div>
@@ -55,17 +62,16 @@ function FlatLay({ outfit }) {
         style={{
           position: 'relative',
           width: '100%',
-          aspectRatio: '4 / 5',
+          aspectRatio: '1 / 1.05',
           background: '#fff',
           border: '1px solid var(--line)',
           borderRadius: 6,
           overflow: 'hidden',
         }}
       >
-        {heroTop && <PositionedItem it={heroTop} z={2} slot={{ top: '5%', left: '1%', width: '50%', height: '46%' }} />}
-        {secondTop && <PositionedItem it={secondTop} z={3} slot={{ top: '20%', left: '24%', width: '40%', height: '40%' }} />}
-        {bottom && <PositionedItem it={bottom} z={1} slot={{ top: '3%', right: '0%', width: '47%', height: '90%' }} />}
-        {extras.map((it, i) => (extraSlots[i] ? <PositionedItem key={it.id} it={it} z={4} slot={extraSlots[i]} /> : null))}
+        {rightItem && <PositionedItem it={rightItem} z={1} slot={{ top: '1%', right: '0%', width: '49%', height: '98%' }} />}
+        {leftTop && <PositionedItem it={leftTop} z={2} slot={{ top: '2%', left: '0%', width: '49%', height: '50%' }} />}
+        {extras.map((it, i) => (extraSlots[i] ? <PositionedItem key={it.id} it={it} z={3} slot={extraSlots[i]} /> : null))}
 
         {/* faint Iris mark, like the reference watermark */}
         <span style={{ position: 'absolute', bottom: 10, right: 14, fontFamily: 'Georgia, serif', fontStyle: 'italic', fontSize: 13, color: 'var(--line)', letterSpacing: 1, zIndex: 6 }}>
