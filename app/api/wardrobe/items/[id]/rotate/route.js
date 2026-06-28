@@ -42,7 +42,7 @@ export async function POST(request, { params }) {
 
     stage = 'read';
     const inputBuffer = Buffer.from(await blob.arrayBuffer());
-    const image = await Jimp.read(inputBuffer);
+    const image = await Jimp.read(inputBuffer, { jpeg: { maxMemoryUsageInMB: 4096 }, maxResolutionInMP: 600 });
 
     stage = 'rotate';
     const deg = Number(degrees) || 90;
