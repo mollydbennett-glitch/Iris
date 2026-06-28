@@ -7,6 +7,22 @@ const SILHOUETTES = ['fitted', 'relaxed', 'oversized', 'structured', 'flowy', 't
 const PATTERNS = ['solid', 'striped', 'plaid', 'floral', 'print', 'textured', 'other'];
 const SEASONS = ['spring', 'summer', 'fall', 'winter'];
 
+// iPhone photos are often HEIC/HEIF, which browsers can't draw to a canvas.
+// Convert those to JPEG first (in the browser) before resizing.
+async function ensureBrowserReadable(file) {
+  const name = (file.name || '').toLowerCase();
+  const isHeic =
+    file.type === 'image/heic' ||
+    file.type === 'image/heif' ||
+    name.endsWith('.heic') ||
+    name.endsWith('.heif');
+  if (!isHeic) return file;
+  const heic2any = (await import('heic2any')).default;
+  const converted = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.9 });
+  const blob = Array.isArray(converted) ? converted[0] : converted;
+  return new File([blob], name.replace(/\.(heic|heif)$/i, '.jpg'), { type: 'image/jpeg' });
+}
+
 // Shrink any photo to a max edge of 1200px and re-encode as JPEG in the browser.
 // Keeps uploads small/fast and normalizes phone photos before they hit Claude.
 function resizeToJpeg(file) {
@@ -57,7 +73,8 @@ export default function UploadPage() {
 
     for (const file of files) {
       try {
-        const jpeg = await resizeToJpeg(file);
+        const readable = await ensureBrowserReadable(file);
+        const jpeg = await resizeToJpeg(readable);
         const fd = new FormData();
         fd.append('image', jpeg, 'item.jpg');
         const res = await fetch('/api/wardrobe/upload', { method: 'POST', body: fd });
