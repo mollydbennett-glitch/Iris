@@ -7,20 +7,16 @@ const SILHOUETTES = ['fitted', 'relaxed', 'oversized', 'structured', 'flowy', 't
 const PATTERNS = ['solid', 'striped', 'plaid', 'floral', 'print', 'textured', 'other'];
 const SEASONS = ['spring', 'summer', 'fall', 'winter'];
 
-// iPhone photos are often HEIC/HEIF, which browsers can't draw to a canvas.
-// Convert those to JPEG first (in the browser) before resizing.
-async function ensureBrowserReadable(file) {
+// Browsers can't draw HEIC/HEIF to a canvas, so we can't resize those here.
+// We detect them and send the original file; the server converts to JPEG.
+function isHeicFile(file) {
   const name = (file.name || '').toLowerCase();
-  const isHeic =
+  return (
     file.type === 'image/heic' ||
     file.type === 'image/heif' ||
     name.endsWith('.heic') ||
-    name.endsWith('.heif');
-  if (!isHeic) return file;
-  const heic2any = (await import('heic2any')).default;
-  const converted = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.9 });
-  const blob = Array.isArray(converted) ? converted[0] : converted;
-  return new File([blob], name.replace(/\.(heic|heif)$/i, '.jpg'), { type: 'image/jpeg' });
+    name.endsWith('.heif')
+  );
 }
 
 // Shrink any photo to a max edge of 1200px and re-encode as JPEG in the browser.
@@ -73,10 +69,14 @@ export default function UploadPage() {
 
     for (const file of files) {
       try {
-        const readable = await ensureBrowserReadable(file);
-        const jpeg = await resizeToJpeg(readable);
         const fd = new FormData();
-        fd.append('image', jpeg, 'item.jpg');
+        if (isHeicFile(file)) {
+          // Send HEIC untouched; the server converts + tags it.
+          fd.append('image', file, file.name || 'item.heic');
+        } else {
+          const jpeg = await resizeToJpeg(file);
+          fd.append('image', jpeg, 'item.jpg');
+        }
         const res = await fetch('/api/wardrobe/upload', { method: 'POST', body: fd });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Upload failed');
