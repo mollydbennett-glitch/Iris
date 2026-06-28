@@ -153,6 +153,8 @@ export default function ItemDetailPage() {
     <div>
       <a href="/wardrobe" className="navlink" style={{ color: 'var(--ink-soft)' }}>← Back to wardrobe</a>
 
+      {error && <p className="status err" style={{ display: 'block', marginTop: 12 }}>{error}</p>}
+
       <div style={{ marginTop: 18, display: 'flex', flexWrap: 'wrap', gap: 28 }}>
         <div style={{ flex: '0 0 320px', maxWidth: 320 }}>
           <div style={{ width: '100%', aspectRatio: '3 / 4', background: showCutout ? '#fff' : 'var(--gold-soft)', borderRadius: 4, overflow: 'hidden', border: '1px solid var(--line)' }}>
