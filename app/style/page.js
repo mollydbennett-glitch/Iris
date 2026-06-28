@@ -43,20 +43,20 @@ function FlatLay({ outfit }) {
       </div>
 
       {/* hero garments, all on one baseline at the same height */}
-      <div style={{ display: 'flex', gap: 24, alignItems: 'flex-end', justifyContent: 'center', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 18, alignItems: 'flex-end', justifyContent: 'center', flexWrap: 'wrap' }}>
         {mains.map((it) => (
-          <div key={it.id} style={{ flex: '0 1 210px', maxWidth: 230 }}>
-            <ItemImg it={it} boxH={240} />
+          <div key={it.id} style={{ flex: '1 1 220px', maxWidth: 260 }}>
+            <ItemImg it={it} boxH={270} />
           </div>
         ))}
       </div>
 
       {/* accessories: smaller, grouped, shared baseline */}
       {smalls.length > 0 && (
-        <div style={{ display: 'flex', gap: 20, alignItems: 'flex-end', justifyContent: 'center', flexWrap: 'wrap', marginTop: 26 }}>
+        <div style={{ display: 'flex', gap: 16, alignItems: 'flex-end', justifyContent: 'center', flexWrap: 'wrap', marginTop: 22 }}>
           {smalls.map((it) => (
-            <div key={it.id} style={{ flex: '0 0 120px' }}>
-              <ItemImg it={it} boxH={110} />
+            <div key={it.id} style={{ flex: '0 0 140px' }}>
+              <ItemImg it={it} boxH={140} />
             </div>
           ))}
         </div>
@@ -162,9 +162,9 @@ export default function StylePage() {
       )}
 
       {outfits && outfits.length > 0 && (
-        <div style={{ marginTop: 24, display: 'flex', flexDirection: 'column', gap: 28 }}>
+        <div style={{ marginTop: 24, display: 'flex', flexDirection: 'column', gap: 36, alignItems: 'center' }}>
           {outfits.map((o, idx) => (
-            <div key={idx}>
+            <div key={idx} style={{ width: '100%', maxWidth: 600 }}>
               <FlatLay outfit={o} />
               <div style={{ padding: '14px 4px 0' }}>
                 {o.why && <p style={{ fontSize: 14, lineHeight: 1.55, margin: 0 }}>{o.why}</p>}
