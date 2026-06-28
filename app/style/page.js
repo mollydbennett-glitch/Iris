@@ -4,68 +4,74 @@ import { useState } from 'react';
 
 const OCCASIONS = ['Everyday', 'Work', 'Dinner', 'Date night', 'Weekend', 'Event / party', 'Workout', 'Trip'];
 
-function ItemImg({ it, boxH }) {
+function PositionedItem({ it, slot, z }) {
   const src = it.cutout_url || it.image_url;
   return (
-    <div style={{ height: boxH, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-      <img
-        src={src}
-        alt=""
-        style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain', display: 'block' }}
-      />
+    <div
+      style={{
+        position: 'absolute',
+        ...slot,
+        zIndex: z,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <img src={src} alt="" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', display: 'block' }} />
     </div>
   );
 }
 
+// Editorial collage layout, modeled on the reference flat-lays:
+// big top-left garment, tall garment on the right, accessories clustered
+// lower-left, with slight overlaps so it reads styled, not catalog.
 function FlatLay({ outfit }) {
-  const HERO = ['top', 'dress', 'outerwear', 'bottom'];
-  const heroes = outfit.items.filter((i) => HERO.includes(i.category));
-  const extras = outfit.items.filter((i) => !HERO.includes(i.category));
-  // Fallback if tags are messy: treat the first couple as heroes.
-  const mains = heroes.length ? heroes : outfit.items.slice(0, 2);
-  const smalls = heroes.length ? extras : outfit.items.slice(2);
+  const items = outfit.items;
+  const tops = items.filter((i) => ['top', 'dress', 'outerwear'].includes(i.category));
+  const bottom = items.find((i) => i.category === 'bottom');
+  const heroTop = tops[0];
+  const secondTop = tops[1];
+  const used = new Set([heroTop, secondTop, bottom].filter(Boolean));
+  const extras = items.filter((i) => !used.has(i));
+
+  // Lower-left cluster slots for accessories (shoes, bag, sunglasses, jewelry…).
+  const extraSlots = [
+    { left: '2%', top: '54%', width: '27%', height: '22%' },
+    { left: '28%', top: '64%', width: '28%', height: '26%' },
+    { left: '3%', top: '76%', width: '24%', height: '22%' },
+    { left: '31%', top: '44%', width: '18%', height: '15%' },
+    { left: '15%', top: '40%', width: '14%', height: '12%' },
+  ];
 
   return (
-    <div
-      style={{
-        position: 'relative',
-        background: '#fff',
-        border: '1px solid var(--line)',
-        borderRadius: 6,
-        padding: '22px 28px 30px',
-        overflow: 'hidden',
-      }}
-    >
-      {/* header: Iris wordmark + outfit title */}
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 20 }}>
+    <div>
+      {/* header sits above the canvas, clean */}
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 12, paddingLeft: 2 }}>
         <span style={{ fontFamily: 'Georgia, serif', fontStyle: 'italic', fontSize: 18, color: 'var(--ink)' }}>Iris</span>
         <span style={{ fontFamily: 'Georgia, serif', fontSize: 19, color: 'var(--ink)' }}>{outfit.title}</span>
       </div>
 
-      {/* hero garments, all on one baseline at the same height */}
-      <div style={{ display: 'flex', gap: 18, alignItems: 'flex-end', justifyContent: 'center', flexWrap: 'wrap' }}>
-        {mains.map((it) => (
-          <div key={it.id} style={{ flex: '1 1 220px', maxWidth: 260 }}>
-            <ItemImg it={it} boxH={270} />
-          </div>
-        ))}
+      <div
+        style={{
+          position: 'relative',
+          width: '100%',
+          aspectRatio: '4 / 5',
+          background: '#fff',
+          border: '1px solid var(--line)',
+          borderRadius: 6,
+          overflow: 'hidden',
+        }}
+      >
+        {heroTop && <PositionedItem it={heroTop} z={2} slot={{ top: '5%', left: '1%', width: '50%', height: '46%' }} />}
+        {secondTop && <PositionedItem it={secondTop} z={3} slot={{ top: '20%', left: '24%', width: '40%', height: '40%' }} />}
+        {bottom && <PositionedItem it={bottom} z={1} slot={{ top: '3%', right: '0%', width: '47%', height: '90%' }} />}
+        {extras.map((it, i) => (extraSlots[i] ? <PositionedItem key={it.id} it={it} z={4} slot={extraSlots[i]} /> : null))}
+
+        {/* faint Iris mark, like the reference watermark */}
+        <span style={{ position: 'absolute', bottom: 10, right: 14, fontFamily: 'Georgia, serif', fontStyle: 'italic', fontSize: 13, color: 'var(--line)', letterSpacing: 1, zIndex: 6 }}>
+          Iris
+        </span>
       </div>
-
-      {/* accessories: smaller, grouped, shared baseline */}
-      {smalls.length > 0 && (
-        <div style={{ display: 'flex', gap: 16, alignItems: 'flex-end', justifyContent: 'center', flexWrap: 'wrap', marginTop: 22 }}>
-          {smalls.map((it) => (
-            <div key={it.id} style={{ flex: '0 0 140px' }}>
-              <ItemImg it={it} boxH={140} />
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* faint Iris mark, like the reference watermark */}
-      <span style={{ position: 'absolute', bottom: 8, right: 12, fontFamily: 'Georgia, serif', fontStyle: 'italic', fontSize: 12, color: 'var(--line)', letterSpacing: 1 }}>
-        Iris
-      </span>
     </div>
   );
 }
@@ -164,7 +170,7 @@ export default function StylePage() {
       {outfits && outfits.length > 0 && (
         <div style={{ marginTop: 24, display: 'flex', flexDirection: 'column', gap: 36, alignItems: 'center' }}>
           {outfits.map((o, idx) => (
-            <div key={idx} style={{ width: '100%', maxWidth: 600 }}>
+            <div key={idx} style={{ width: '100%', maxWidth: 460 }}>
               <FlatLay outfit={o} />
               <div style={{ padding: '14px 4px 0' }}>
                 {o.why && <p style={{ fontSize: 14, lineHeight: 1.55, margin: 0 }}>{o.why}</p>}
