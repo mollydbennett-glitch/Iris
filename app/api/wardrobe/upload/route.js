@@ -36,7 +36,7 @@ export async function POST(request) {
     // Shrink so stored files stay well under storage size limits.
     {
       const { Jimp } = await import('jimp');
-      const img = await Jimp.read(buffer, { jpeg: { maxMemoryUsageInMB: 4096 }, maxResolutionInMP: 600 });
+      const img = await Jimp.fromBuffer(buffer, { 'image/jpeg': { maxMemoryUsageInMB: 8192 } });
       if (img.width > 1400 || img.height > 1400) img.scaleToFit({ w: 1400, h: 1400 });
       buffer = await img.getBuffer('image/jpeg', { quality: 80 });
     }
