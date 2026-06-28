@@ -13,6 +13,7 @@ export async function PATCH(request, { params }) {
     // user_verified_tags so the gallery and the engine read clean data.
     const update = {
       category: body.category ?? null,
+      subcategory: body.subcategory ?? null,
       color: body.color ?? null,
       fabric: body.fabric ?? null,
       season: body.season ?? null,
