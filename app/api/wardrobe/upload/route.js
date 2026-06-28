@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin, PHASE1_USER_ID } from '@/lib/supabase';
 import { tagClothingImage } from '@/lib/claude';
+import { removeBackground } from '@/lib/photoroom';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60; // give the vision + convert room (per-function, explicit)
@@ -62,6 +63,23 @@ export async function POST(request) {
     const { data: pub } = supabaseAdmin.storage.from('wardrobe').getPublicUrl(storagePath);
     const imageUrl = pub.publicUrl;
 
+    // Best-effort transparent cutout via Photoroom (never blocks the upload).
+    let cutoutUrl = null;
+    try {
+      const cutout = await removeBackground(buffer);
+      if (cutout) {
+        const cutoutPath = `${PHASE1_USER_ID}/cutouts/${filename.replace(/\.jpg$/, '')}.png`;
+        const { error: cErr } = await supabaseAdmin.storage
+          .from('wardrobe')
+          .upload(cutoutPath, cutout, { contentType: 'image/png', upsert: true });
+        if (!cErr) {
+          cutoutUrl = supabaseAdmin.storage.from('wardrobe').getPublicUrl(cutoutPath).data.publicUrl;
+        }
+      }
+    } catch (e) {
+      // ignore — cutout is optional
+    }
+
     // 3) Insert the row. user_verified_tags starts as a copy of the AI tags;
     //    the confirm step lets Molly correct them.
     const { data: item, error: dbError } = await supabaseAdmin
@@ -69,6 +87,7 @@ export async function POST(request) {
       .insert({
         user_id: PHASE1_USER_ID,
         image_url: imageUrl,
+        cutout_url: cutoutUrl,
         category: tags.category ?? null,
         subcategory: tags.subcategory ?? null,
         color: tags.color ?? null,
