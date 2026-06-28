@@ -4,35 +4,27 @@ import { useState } from 'react';
 
 const OCCASIONS = ['Everyday', 'Work', 'Dinner', 'Date night', 'Weekend', 'Event / party', 'Workout', 'Trip'];
 
-// Sort an outfit's items into a flat-lay arrangement.
-function arrange(items) {
-  const isTop = (c) => ['top', 'dress', 'outerwear'].includes(c);
-  const heroTop = items.find((i) => isTop(i.category)) || items[0];
-  const heroBottom = items.find((i) => i.category === 'bottom' && i !== heroTop);
-  const rest = items.filter((i) => i !== heroTop && i !== heroBottom);
-  return { heroTop, heroBottom, rest };
-}
-
-function ItemImg({ it, style }) {
+function ItemImg({ it, boxH }) {
   const src = it.cutout_url || it.image_url;
   return (
-    <img
-      src={src}
-      alt=""
-      style={{
-        maxWidth: '100%',
-        maxHeight: '100%',
-        objectFit: 'contain',
-        display: 'block',
-        margin: '0 auto',
-        ...style,
-      }}
-    />
+    <div style={{ height: boxH, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+      <img
+        src={src}
+        alt=""
+        style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain', display: 'block' }}
+      />
+    </div>
   );
 }
 
 function FlatLay({ outfit }) {
-  const { heroTop, heroBottom, rest } = arrange(outfit.items);
+  const HERO = ['top', 'dress', 'outerwear', 'bottom'];
+  const heroes = outfit.items.filter((i) => HERO.includes(i.category));
+  const extras = outfit.items.filter((i) => !HERO.includes(i.category));
+  // Fallback if tags are messy: treat the first couple as heroes.
+  const mains = heroes.length ? heroes : outfit.items.slice(0, 2);
+  const smalls = heroes.length ? extras : outfit.items.slice(2);
+
   return (
     <div
       style={{
@@ -40,40 +32,35 @@ function FlatLay({ outfit }) {
         background: '#fff',
         border: '1px solid var(--line)',
         borderRadius: 6,
-        padding: '22px 24px 28px',
+        padding: '22px 28px 30px',
         overflow: 'hidden',
       }}
     >
       {/* header: Iris wordmark + outfit title */}
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 20 }}>
         <span style={{ fontFamily: 'Georgia, serif', fontStyle: 'italic', fontSize: 18, color: 'var(--ink)' }}>Iris</span>
         <span style={{ fontFamily: 'Georgia, serif', fontSize: 19, color: 'var(--ink)' }}>{outfit.title}</span>
       </div>
 
-      {/* composition: hero top + small items on the left, hero bottom on the right */}
-      <div style={{ display: 'flex', gap: 18, alignItems: 'stretch', minHeight: 320 }}>
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }}>
-          {heroTop && (
-            <div style={{ height: heroBottom ? 230 : 300 }}>
-              <ItemImg it={heroTop} />
-            </div>
-          )}
-          {rest.length > 0 && (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-end', justifyContent: 'center' }}>
-              {rest.map((it) => (
-                <div key={it.id} style={{ width: 92, height: 92 }}>
-                  <ItemImg it={it} />
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-        {heroBottom && (
-          <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center' }}>
-            <ItemImg it={heroBottom} style={{ maxHeight: 360 }} />
+      {/* hero garments, all on one baseline at the same height */}
+      <div style={{ display: 'flex', gap: 24, alignItems: 'flex-end', justifyContent: 'center', flexWrap: 'wrap' }}>
+        {mains.map((it) => (
+          <div key={it.id} style={{ flex: '0 1 210px', maxWidth: 230 }}>
+            <ItemImg it={it} boxH={240} />
           </div>
-        )}
+        ))}
       </div>
+
+      {/* accessories: smaller, grouped, shared baseline */}
+      {smalls.length > 0 && (
+        <div style={{ display: 'flex', gap: 20, alignItems: 'flex-end', justifyContent: 'center', flexWrap: 'wrap', marginTop: 26 }}>
+          {smalls.map((it) => (
+            <div key={it.id} style={{ flex: '0 0 120px' }}>
+              <ItemImg it={it} boxH={110} />
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* faint Iris mark, like the reference watermark */}
       <span style={{ position: 'absolute', bottom: 8, right: 12, fontFamily: 'Georgia, serif', fontStyle: 'italic', fontSize: 12, color: 'var(--line)', letterSpacing: 1 }}>
