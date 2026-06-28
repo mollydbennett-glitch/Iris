@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 
 const SEASONS = ['spring', 'summer', 'fall', 'winter'];
 
@@ -10,6 +11,7 @@ function seasonList(season) {
 }
 
 export default function WardrobePage() {
+  const router = useRouter();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -148,8 +150,8 @@ export default function WardrobePage() {
             const hasCutout = !!it.cutout_url;
             const src = it.cutout_url || it.image_url;
             return (
-              <a key={it.id} href={`/wardrobe/${it.id}`}
-                style={{ position: 'relative', background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 4, overflow: 'hidden', textDecoration: 'none', color: 'var(--ink)', display: 'block' }}>
+              <div key={it.id} onClick={() => router.push(`/wardrobe/${it.id}`)}
+                style={{ position: 'relative', background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 4, overflow: 'hidden', color: 'var(--ink)', display: 'block', cursor: 'pointer' }}>
                 <button type="button" onClick={(e) => removeItem(e, it)} title="Remove from wardrobe"
                   style={{ position: 'absolute', top: 8, right: 8, width: 26, height: 26, borderRadius: '50%', border: 'none', background: 'rgba(26,23,20,0.6)', color: '#fff', fontSize: 15, lineHeight: 1, cursor: 'pointer', zIndex: 2 }}>×</button>
                 <div style={{ width: '100%', aspectRatio: '3 / 4', background: hasCutout ? '#fff' : 'var(--gold-soft)' }}>
@@ -168,7 +170,7 @@ export default function WardrobePage() {
                     </div>
                   )}
                 </div>
-              </a>
+              </div>
             );
           })}
         </div>
