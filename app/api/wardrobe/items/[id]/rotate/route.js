@@ -44,7 +44,8 @@ export async function POST(request, { params }) {
     // 3) Rotate and re-encode as JPEG.
     const image = await Jimp.read(inputBuffer);
     image.rotate(Number(degrees) || 90);
-    const outBuffer = await image.getBuffer('image/jpeg', { quality: 85 });
+    if (image.width > 1400 || image.height > 1400) image.scaleToFit({ w: 1400, h: 1400 });
+    const outBuffer = await image.getBuffer('image/jpeg', { quality: 80 });
 
     // 4) Overwrite the same path.
     const { error: upErr } = await supabaseAdmin.storage
