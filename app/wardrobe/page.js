@@ -14,11 +14,13 @@ export default function WardrobePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  // Active filters (empty string = "all")
   const [fCategory, setFCategory] = useState('');
   const [fSeason, setFSeason] = useState('');
   const [fColor, setFColor] = useState('');
   const [fVibe, setFVibe] = useState('');
+
+  const [cutoutBusy, setCutoutBusy] = useState(false);
+  const [cutoutProgress, setCutoutProgress] = useState(null);
 
   useEffect(() => {
     (async () => {
@@ -35,19 +37,9 @@ export default function WardrobePage() {
     })();
   }, []);
 
-  // Build filter option lists from what's actually in the closet.
-  const categories = useMemo(
-    () => [...new Set(items.map((i) => i.category).filter(Boolean))].sort(),
-    [items]
-  );
-  const colors = useMemo(
-    () => [...new Set(items.map((i) => i.color?.primary).filter(Boolean))].sort(),
-    [items]
-  );
-  const vibes = useMemo(
-    () => [...new Set(items.flatMap((i) => (Array.isArray(i.style_vibe) ? i.style_vibe : [])).filter(Boolean))].sort(),
-    [items]
-  );
+  const categories = useMemo(() => [...new Set(items.map((i) => i.category).filter(Boolean))].sort(), [items]);
+  const colors = useMemo(() => [...new Set(items.map((i) => i.color?.primary).filter(Boolean))].sort(), [items]);
+  const vibes = useMemo(() => [...new Set(items.flatMap((i) => (Array.isArray(i.style_vibe) ? i.style_vibe : [])).filter(Boolean))].sort(), [items]);
 
   const filtered = items.filter((it) => {
     if (fCategory && it.category !== fCategory) return false;
@@ -58,42 +50,51 @@ export default function WardrobePage() {
   });
 
   const anyFilter = fCategory || fSeason || fColor || fVibe;
-  function clearFilters() {
-    setFCategory(''); setFSeason(''); setFColor(''); setFVibe('');
+  function clearFilters() { setFCategory(''); setFSeason(''); setFColor(''); setFVibe(''); }
+
+  const needCutouts = items.filter((it) => !it.cutout_url);
+
+  async function makeCutouts() {
+    setCutoutBusy(true);
+    setError('');
+    const todo = items.filter((it) => !it.cutout_url);
+    for (let i = 0; i < todo.length; i++) {
+      setCutoutProgress(`${i + 1} / ${todo.length}`);
+      try {
+        const res = await fetch(`/api/wardrobe/items/${todo[i].id}/cutout`, { method: 'POST' });
+        const data = await res.json();
+        if (res.ok && data.cutout_url) {
+          setItems((prev) => prev.map((x) => (x.id === todo[i].id ? { ...x, cutout_url: data.cutout_url } : x)));
+        }
+      } catch {
+        // continue with the rest
+      }
+    }
+    setCutoutBusy(false);
+    setCutoutProgress(null);
   }
 
   async function removeItem(e, it) {
     e.preventDefault();
     e.stopPropagation();
     if (!window.confirm('Remove this piece from your wardrobe?')) return;
-    // Optimistic: drop it from view immediately.
     setItems((prev) => prev.filter((x) => x.id !== it.id));
     try {
       const res = await fetch(`/api/wardrobe/items/${it.id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Delete failed');
     } catch (err) {
-      // Put it back if the server rejected it.
       setItems((prev) => [it, ...prev]);
       setError(err.message);
     }
   }
 
-  const selectStyle = {
-    padding: '7px 10px',
-    border: '1px solid var(--line)',
-    borderRadius: 2,
-    background: '#fff',
-    color: 'var(--ink)',
-    fontSize: 14,
-  };
+  const selectStyle = { padding: '7px 10px', border: '1px solid var(--line)', borderRadius: 2, background: '#fff', color: 'var(--ink)', fontSize: 14 };
 
   return (
     <div>
       <h1 className="display">Wardrobe</h1>
       <p className="lede">
-        {loading
-          ? 'Loading your closet…'
-          : `${filtered.length}${anyFilter ? ` of ${items.length}` : ''} piece${filtered.length === 1 ? '' : 's'}.`}
+        {loading ? 'Loading your closet…' : `${filtered.length}${anyFilter ? ` of ${items.length}` : ''} piece${filtered.length === 1 ? '' : 's'}.`}
       </p>
 
       {error && <p className="status err" style={{ display: 'block' }}>{error}</p>}
@@ -116,88 +117,47 @@ export default function WardrobePage() {
             <option value="">All vibes</option>
             {vibes.map((v) => <option key={v} value={v}>{v}</option>)}
           </select>
-          {anyFilter && (
-            <button className="btn btn-ghost" style={{ padding: '7px 14px' }} onClick={clearFilters}>
-              Clear
-            </button>
-          )}
+          {anyFilter && <button className="btn btn-ghost" style={{ padding: '7px 14px' }} onClick={clearFilters}>Clear</button>}
+        </div>
+      )}
+
+      {!loading && needCutouts.length > 0 && (
+        <div style={{ marginTop: 14 }}>
+          <button className="btn btn-ghost" style={{ padding: '8px 14px' }} onClick={makeCutouts} disabled={cutoutBusy}>
+            {cutoutBusy ? <><span className="spinner" />&nbsp; Removing backgrounds {cutoutProgress}</> : `Clean up backgrounds (${needCutouts.length})`}
+          </button>
+          <p className="note" style={{ marginTop: 6 }}>Removes the photo backgrounds for a clean catalog look.</p>
         </div>
       )}
 
       {!loading && items.length === 0 && (
-        <div style={{ marginTop: 24 }}>
-          <a href="/upload" className="btn">Add items</a>
-        </div>
+        <div style={{ marginTop: 24 }}><a href="/upload" className="btn">Add items</a></div>
       )}
 
       {!loading && filtered.length > 0 && (
-        <div
-          style={{
-            marginTop: 24,
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))',
-            gap: 18,
-          }}
-        >
+        <div style={{ marginTop: 24, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))', gap: 18 }}>
           {filtered.map((it) => {
             const seasons = seasonList(it.season);
+            const hasCutout = !!it.cutout_url;
+            const src = it.cutout_url || it.image_url;
             return (
-              <a
-                key={it.id}
-                href={`/wardrobe/${it.id}`}
-                style={{
-                  position: 'relative',
-                  background: 'var(--card)',
-                  border: '1px solid var(--line)',
-                  borderRadius: 4,
-                  overflow: 'hidden',
-                  textDecoration: 'none',
-                  color: 'var(--ink)',
-                  display: 'block',
-                }}
-              >
-                <button
-                  type="button"
-                  onClick={(e) => removeItem(e, it)}
-                  title="Remove from wardrobe"
-                  style={{
-                    position: 'absolute',
-                    top: 8,
-                    right: 8,
-                    width: 26,
-                    height: 26,
-                    borderRadius: '50%',
-                    border: 'none',
-                    background: 'rgba(26,23,20,0.6)',
-                    color: '#fff',
-                    fontSize: 15,
-                    lineHeight: 1,
-                    cursor: 'pointer',
-                    zIndex: 2,
-                  }}
-                >
-                  ×
-                </button>
-                <div style={{ width: '100%', aspectRatio: '3 / 4', background: 'var(--gold-soft)' }}>
-                  <img
-                    src={it.image_url}
-                    alt=""
-                    style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                  />
+              <a key={it.id} href={`/wardrobe/${it.id}`}
+                style={{ position: 'relative', background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 4, overflow: 'hidden', textDecoration: 'none', color: 'var(--ink)', display: 'block' }}>
+                <button type="button" onClick={(e) => removeItem(e, it)} title="Remove from wardrobe"
+                  style={{ position: 'absolute', top: 8, right: 8, width: 26, height: 26, borderRadius: '50%', border: 'none', background: 'rgba(26,23,20,0.6)', color: '#fff', fontSize: 15, lineHeight: 1, cursor: 'pointer', zIndex: 2 }}>×</button>
+                <div style={{ width: '100%', aspectRatio: '3 / 4', background: hasCutout ? '#fff' : 'var(--gold-soft)' }}>
+                  <img src={src} alt="" style={{ width: '100%', height: '100%', objectFit: hasCutout ? 'contain' : 'cover', padding: hasCutout ? 10 : 0, display: 'block' }} />
                 </div>
                 <div style={{ padding: '10px 12px 12px' }}>
                   <div style={{ fontFamily: 'Georgia, serif', fontSize: 15, textTransform: 'capitalize' }}>
-                    {it.color?.primary ? `${it.color.primary} ` : ''}
-                    {it.subcategory || it.category || 'item'}
+                    {it.color?.primary ? `${it.color.primary} ` : ''}{it.subcategory || it.category || 'item'}
                   </div>
                   <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 3, textTransform: 'capitalize' }}>
                     {[it.category, it.fabric].filter(Boolean).join(' · ')}
                   </div>
                   {seasons.length > 0 && (
                     <div style={{ marginTop: 7, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                      {seasons.map((s) => (
-                        <span key={s} className="pill" style={{ marginRight: 0 }}>{s}</span>
-                      ))}
+                      {seasons.map((s) => <span key={s} className="pill" style={{ marginRight: 0 }}>{s}</span>)}
                     </div>
                   )}
                 </div>
