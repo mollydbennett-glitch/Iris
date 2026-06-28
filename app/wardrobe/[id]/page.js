@@ -47,6 +47,7 @@ export default function ItemDetailPage() {
     return {
       id: item.id,
       image_url: item.image_url,
+      cutout_url: item.cutout_url || null,
       category: item.category || '',
       subcategory: item.subcategory || '',
       colorPrimary: item.color?.primary || '',
@@ -132,11 +133,23 @@ export default function ItemDetailPage() {
     }
   }
 
+  async function removeHard() {
+    if (!window.confirm('Permanently delete this piece and its photo? This cannot be undone.')) return;
+    try {
+      const res = await fetch(`/api/wardrobe/items/${id}?mode=hard`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Delete failed');
+      router.push('/wardrobe');
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
   if (loading) return <p className="lede">Loading…</p>;
   if (!it) return <p className="status err" style={{ display: 'block' }}>{error || 'Item not found.'}</p>;
 
   const subs = SUBCATEGORIES[it.category] || [];
-  const imgSrc = rotatedAt ? `${it.image_url.split('?')[0]}?t=${rotatedAt}` : it.image_url;
+  const showCutout = it.cutout_url && !rotatedAt;
+  const imgSrc = rotatedAt ? `${it.image_url.split('?')[0]}?t=${rotatedAt}` : (it.cutout_url || it.image_url);
 
   return (
     <div>
@@ -144,8 +157,8 @@ export default function ItemDetailPage() {
 
       <div style={{ marginTop: 18, display: 'flex', flexWrap: 'wrap', gap: 28 }}>
         <div style={{ flex: '0 0 320px', maxWidth: 320 }}>
-          <div style={{ width: '100%', aspectRatio: '3 / 4', background: 'var(--gold-soft)', borderRadius: 4, overflow: 'hidden', border: '1px solid var(--line)' }}>
-            <img src={imgSrc} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+          <div style={{ width: '100%', aspectRatio: '3 / 4', background: showCutout ? '#fff' : 'var(--gold-soft)', borderRadius: 4, overflow: 'hidden', border: '1px solid var(--line)' }}>
+            <img src={imgSrc} alt="" style={{ width: '100%', height: '100%', objectFit: showCutout ? 'contain' : 'cover', padding: showCutout ? 12 : 0, display: 'block' }} />
           </div>
           <div className="rotate-row" style={{ justifyContent: 'flex-start' }}>
             <button className="rotate-btn" onClick={() => rotate(270)} disabled={rotating} title="Rotate left">↺</button>
@@ -216,9 +229,18 @@ export default function ItemDetailPage() {
             {status === 'error' && <span className="status err">Couldn’t save</span>}
             <button
               onClick={remove}
-              style={{ marginLeft: 'auto', background: 'none', border: 'none', color: 'var(--bad)', cursor: 'pointer', fontSize: 13 }}
+              style={{ marginLeft: 'auto', background: 'none', border: 'none', color: 'var(--ink-soft)', cursor: 'pointer', fontSize: 13 }}
             >
               Remove from wardrobe
+            </button>
+          </div>
+          <div style={{ marginTop: 10, textAlign: 'right' }}>
+            <button
+              onClick={removeHard}
+              style={{ background: 'none', border: 'none', color: 'var(--bad)', cursor: 'pointer', fontSize: 12 }}
+              title="Permanently deletes the item and its photo"
+            >
+              Delete permanently
             </button>
           </div>
         </div>
