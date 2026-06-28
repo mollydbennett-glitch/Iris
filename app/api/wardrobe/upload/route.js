@@ -66,8 +66,9 @@ export async function POST(request) {
     // Best-effort transparent cutout via Photoroom (never blocks the upload).
     let cutoutUrl = null;
     try {
-      const cutout = await removeBackground(buffer);
-      if (cutout) {
+      const rb = await removeBackground(buffer);
+      if (rb.ok && rb.buffer) {
+        const cutout = rb.buffer;
         const cutoutPath = `${PHASE1_USER_ID}/cutouts/${filename.replace(/\.jpg$/, '')}.png`;
         const { error: cErr } = await supabaseAdmin.storage
           .from('wardrobe')
