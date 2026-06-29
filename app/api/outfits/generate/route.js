@@ -6,6 +6,15 @@ import { generateOutfits } from '@/lib/outfitEngine';
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
+// Turn a weather result into a short line we can store on the saved outfit.
+function weatherContext(weather) {
+  if (!weather?.ok) return null;
+  let s = `${weather.location}: ~${weather.high}°F / ${weather.low}°F, ${weather.description}`;
+  if (weather.precip != null) s += `, ${weather.precip}% precip`;
+  if (weather.source === 'seasonal') s += ' (seasonal estimate)';
+  return s;
+}
+
 export async function POST(request) {
   try {
     const body = await request.json();
@@ -36,7 +45,12 @@ export async function POST(request) {
     }
 
     const settings = settingsRes.data || {};
-    const signature = settings.style_signature || {};
+    // Fold styling guidance + playbook into the signature the engine reads.
+    const signature = {
+      ...(settings.style_signature || {}),
+      styling_rules: settings.styling_rules || null,
+      proportion_playbook: settings.proportion_playbook || null,
+    };
     const useLocation = location || settings.default_location || '';
 
     // Weather (best-effort; never blocks generation).
@@ -58,13 +72,46 @@ export async function POST(request) {
       return NextResponse.json({ error: result.error }, { status: 500 });
     }
 
-    // Attach real item data (image + tags) to each chosen id for display.
+    const wctx = weatherContext(weather);
+
+    // Persist each look so it can be rated, slotted into a plan, or favorited
+    // later. Best-effort: if saving fails, we still return the outfits.
+    let savedRows = [];
+    try {
+      const toInsert = result.outfits.map((o) => ({
+        user_id: PHASE1_USER_ID,
+        occasion: occasion || null,
+        location: useLocation || null,
+        forecast_date: date || null,
+        weather_context: wctx,
+        title: o.title,
+        item_ids: o.item_ids,
+        why: o.why,
+        styling_tip: o.styling_tip,
+        engine_scores: o.scores,
+        gap_suggested: o.gap_suggested,
+        gap_workaround: o.gap_workaround,
+        gap_impact: o.gap_impact,
+      }));
+      const { data, error } = await supabaseAdmin.from('saved_outfits').insert(toInsert).select('id');
+      if (!error && data) savedRows = data;
+    } catch (e) {
+      // ignore — persistence is best-effort in this build
+    }
+
+    // Attach real item data (image + tags) to each chosen id for display,
+    // plus the saved id (so the UI can later rate / slot / favorite it).
     const byId = new Map(wardrobe.map((it) => [it.id, it]));
-    const outfits = result.outfits.map((o) => ({
-      title: o.title || 'Outfit',
+    const outfits = result.outfits.map((o, i) => ({
+      id: savedRows[i]?.id || null,
+      title: o.title,
       why: o.why || '',
       styling_tip: o.styling_tip || '',
+      scores: o.scores || null,
       gap: o.gap || null,
+      gap_suggested: o.gap_suggested || null,
+      gap_workaround: o.gap_workaround || null,
+      gap_impact: o.gap_impact ?? null,
       items: (o.item_ids || []).map((id) => byId.get(id)).filter(Boolean),
     }));
 
