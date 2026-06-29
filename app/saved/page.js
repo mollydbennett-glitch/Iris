@@ -41,7 +41,7 @@ export default function SavedPage() {
 
   return (
     <div>
-      <h1 className="display">Saved looks</h1>
+      <h1 className="display">Kept looks</h1>
       <p className="lede">The outfits you’ve kept. Style anytime, plan a week around them later.</p>
 
       {error && <p className="status err" style={{ display: 'block', marginTop: 16 }}>{error}</p>}
