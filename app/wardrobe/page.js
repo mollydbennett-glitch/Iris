@@ -23,6 +23,8 @@ export default function WardrobePage() {
 
   const [cutoutBusy, setCutoutBusy] = useState(false);
   const [cutoutProgress, setCutoutProgress] = useState(null);
+  const [tightenBusy, setTightenBusy] = useState(false);
+  const [tightenProgress, setTightenProgress] = useState(null);
 
   useEffect(() => {
     (async () => {
@@ -83,6 +85,33 @@ export default function WardrobePage() {
     if (firstError) setError(`Background removal failed — ${firstError}`);
   }
 
+  // One click: crop the empty padding off every existing cutout so pieces sit
+  // tight to their edges (and fill the layout). No Photoroom credits used.
+  async function tightenImages() {
+    setTightenBusy(true);
+    setError('');
+    const todo = items.filter((it) => it.cutout_url);
+    let firstError = '';
+    for (let i = 0; i < todo.length; i++) {
+      setTightenProgress(`${i + 1} / ${todo.length}`);
+      try {
+        const res = await fetch(`/api/wardrobe/items/${todo[i].id}/cutout?mode=tighten`, { method: 'POST' });
+        const data = await res.json();
+        if (res.ok && data.cutout_url) {
+          setItems((prev) => prev.map((x) => (x.id === todo[i].id ? { ...x, cutout_url: data.cutout_url } : x)));
+        } else if (!res.ok && !firstError) {
+          firstError = data.error || `HTTP ${res.status}`;
+          break;
+        }
+      } catch (err) {
+        if (!firstError) { firstError = err.message; break; }
+      }
+    }
+    setTightenBusy(false);
+    setTightenProgress(null);
+    if (firstError) setError(`Tighten failed — ${firstError}`);
+  }
+
   async function removeItem(e, it) {
     e.preventDefault();
     e.stopPropagation();
@@ -136,6 +165,15 @@ export default function WardrobePage() {
             {cutoutBusy ? <><span className="spinner" />&nbsp; Removing backgrounds {cutoutProgress}</> : `Clean up backgrounds (${needCutouts.length})`}
           </button>
           <p className="note" style={{ marginTop: 6 }}>Removes the photo backgrounds for a clean catalog look.</p>
+        </div>
+      )}
+
+      {!loading && items.some((it) => it.cutout_url) && (
+        <div style={{ marginTop: 12 }}>
+          <button className="btn btn-ghost" style={{ padding: '8px 14px' }} onClick={tightenImages} disabled={tightenBusy}>
+            {tightenBusy ? <><span className="spinner" />&nbsp; Tightening {tightenProgress}</> : `Tighten images (${items.filter((it) => it.cutout_url).length})`}
+          </button>
+          <p className="note" style={{ marginTop: 6 }}>Crops the empty padding off your cutouts so pieces fill the outfit boards. No credits used.</p>
         </div>
       )}
 
