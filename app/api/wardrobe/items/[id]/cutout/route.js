@@ -17,9 +17,8 @@ function versioned(path) {
   return path.replace(/(\.[^.]+)$/, `-${Date.now()}$1`);
 }
 
-// Crop the empty transparent padding off a cutout so the garment sits tight to
-// its own edges. This is what lets the layout scale each piece up to fill its
-// slot instead of floating in a big transparent box.
+// Safety net: crop any remaining fully-transparent padding so the garment sits
+// tight to its edges (Photoroom's crop already does most of this).
 async function trimTransparent(buffer) {
   const { Jimp } = await import('jimp');
   const img = await Jimp.fromBuffer(buffer);
@@ -36,60 +35,27 @@ async function trimTransparent(buffer) {
       }
     }
   }
-  if (maxX < minX || maxY < minY) return buffer; // nothing opaque; leave as-is
+  if (maxX < minX || maxY < minY) return buffer;
   const span = Math.max(maxX - minX, maxY - minY);
   const pad = Math.round(span * 0.03);
   const cx = Math.max(0, minX - pad);
   const cy = Math.max(0, minY - pad);
   const cw = Math.min(width - cx, maxX - minX + 1 + pad * 2);
   const ch = Math.min(height - cy, maxY - minY + 1 + pad * 2);
-  if (cx === 0 && cy === 0 && cw === width && ch === height) return buffer; // already tight
+  if (cx === 0 && cy === 0 && cw === width && ch === height) return buffer;
   img.crop({ x: cx, y: cy, w: cw, h: ch });
   return await img.getBuffer('image/png');
 }
 
+// Make (or remake) a tight, transparent cutout for one item by re-segmenting the
+// ORIGINAL photo with Photoroom's crop-to-subject on. This works regardless of
+// how the photo was taken — Photoroom finds the garment and crops to it, so a
+// piece that sits small in its frame still comes back filling the cutout.
 export async function POST(request, { params }) {
   try {
     const { id } = await params;
-    const mode = new URL(request.url).searchParams.get('mode');
     const supabaseAdmin = getSupabaseAdmin();
 
-    // ---- tighten mode: just trim the existing cutout, no background removal ----
-    if (mode === 'tighten') {
-      const { data: row, error } = await supabaseAdmin
-        .from('wardrobe_items')
-        .select('cutout_url')
-        .eq('id', id)
-        .single();
-      if (error || !row) return NextResponse.json({ error: error?.message || 'Item not found' }, { status: 404 });
-      if (!row.cutout_url) return NextResponse.json({ ok: true, skipped: 'no cutout yet' });
-
-      const path = storagePathFromUrl(row.cutout_url);
-      if (!path) return NextResponse.json({ error: 'Could not locate cutout.' }, { status: 500 });
-
-      const { data: blob, error: dlErr } = await supabaseAdmin.storage.from('wardrobe').download(path);
-      if (dlErr || !blob) return NextResponse.json({ error: dlErr?.message || 'Download failed' }, { status: 500 });
-
-      const buf = Buffer.from(await blob.arrayBuffer());
-      let trimmed;
-      try { trimmed = await trimTransparent(buf); } catch { return NextResponse.json({ ok: true, skipped: 'trim failed' }); }
-      if (trimmed === buf) return NextResponse.json({ ok: true, cutout_url: row.cutout_url, unchanged: true });
-
-      const newPath = versioned(path);
-      const { error: upErr } = await supabaseAdmin.storage
-        .from('wardrobe')
-        .upload(newPath, trimmed, { contentType: 'image/png', upsert: true });
-      if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 });
-
-      const newUrl = supabaseAdmin.storage.from('wardrobe').getPublicUrl(newPath).data.publicUrl;
-      const { error: updErr } = await supabaseAdmin.from('wardrobe_items').update({ cutout_url: newUrl }).eq('id', id);
-      if (updErr) return NextResponse.json({ error: updErr.message }, { status: 500 });
-
-      try { await supabaseAdmin.storage.from('wardrobe').remove([path]); } catch {}
-      return NextResponse.json({ ok: true, cutout_url: newUrl });
-    }
-
-    // ---- normal mode: remove background from the original, then trim ----
     const { data: row, error: rowErr } = await supabaseAdmin
       .from('wardrobe_items')
       .select('image_url')
@@ -104,11 +70,11 @@ export async function POST(request, { params }) {
     if (dlErr || !blob) return NextResponse.json({ error: dlErr?.message || 'Download failed' }, { status: 500 });
 
     const inputBuffer = Buffer.from(await blob.arrayBuffer());
-    const rb = await removeBackground(inputBuffer);
+    const rb = await removeBackground(inputBuffer, { crop: true });
     if (!rb.ok) return NextResponse.json({ error: rb.message }, { status: 502 });
 
     let cutout = rb.buffer;
-    try { cutout = await trimTransparent(cutout); } catch { /* keep untrimmed on failure */ }
+    try { cutout = await trimTransparent(cutout); } catch { /* keep on failure */ }
 
     const cutoutPath = versioned(path.replace(/^(.*)\/([^/]+)\.[^.]+$/, '$1/cutouts/$2.png'));
     const { error: upErr } = await supabaseAdmin.storage
@@ -117,10 +83,13 @@ export async function POST(request, { params }) {
     if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 });
 
     const cutoutUrl = supabaseAdmin.storage.from('wardrobe').getPublicUrl(cutoutPath).data.publicUrl;
-    const { error: updErr } = await supabaseAdmin.from('wardrobe_items').update({ cutout_url: cutoutUrl }).eq('id', id);
+    const { error: updErr } = await supabaseAdmin
+      .from('wardrobe_items')
+      .update({ cutout_url: cutoutUrl, cutout_tight: true })
+      .eq('id', id);
     if (updErr) return NextResponse.json({ error: updErr.message }, { status: 500 });
 
-    return NextResponse.json({ ok: true, cutout_url: cutoutUrl });
+    return NextResponse.json({ ok: true, cutout_url: cutoutUrl, cutout_tight: true });
   } catch (err) {
     return NextResponse.json({ error: err.message || 'Unknown error' }, { status: 500 });
   }
