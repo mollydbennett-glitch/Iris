@@ -78,7 +78,7 @@ export default function StylePage() {
 
   return (
     <div>
-      <h1 className="display">What to wear</h1>
+      <h1 className="display">Style</h1>
       <p className="lede">Tell Iris the plan. She’ll style complete looks from your closet, weather and occasion considered.</p>
 
       <div style={{ marginTop: 22, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 14, maxWidth: 620 }}>
@@ -150,7 +150,7 @@ export default function StylePage() {
                       disabled={!o.id || savingId === o.id}
                       style={{ padding: '8px 16px', fontSize: 13 }}
                     >
-                      {isSaved ? '♥ Kept' : '♡ Keep'}
+                      {isSaved ? '♥ Loved' : '♡ Love'}
                     </button>
                   </div>
                 </div>
