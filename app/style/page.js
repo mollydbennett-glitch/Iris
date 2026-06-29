@@ -89,10 +89,25 @@ function planBoxes(items, idx, aspects) {
   ];
 
   const mirS = (sl) => (spineRight ? sl : { ...sl, ax: 100 - sl.ax, anchorH: sl.anchorH === 'l' ? 'r' : 'l', pos: 'center' });
+
+  // keep every piece fully inside the frame: scale a box down if it's larger
+  // than the frame (preserving its shape), then nudge it back within the edges
+  // so nothing gets clipped.
+  const clamp = (b) => {
+    let { left, top, width, height, z, pos } = b;
+    let s = 1;
+    if (width > 100) s = Math.min(s, 100 / width);
+    if (height > 100) s = Math.min(s, 100 / height);
+    width *= s; height *= s;
+    left = Math.min(Math.max(left, 0), 100 - width);
+    top = Math.min(Math.max(top, 0), 100 - height);
+    return { left, top, width, height, z, pos };
+  };
+
   const out = [];
-  out.push({ it: spine.it, box: place(mirS(spineSlot), arOf(spine), f) });
-  tops.forEach((r, i) => { const sl = topSlots[i] || topSlots[topSlots.length - 1]; out.push({ it: r.it, box: place(mirS(sl), arOf(r), f) }); });
-  accs.forEach((r, i) => { const sl = accSlots[i] || { ax: 6 + (i * 9) % 40, ay: 62 + (i * 4) % 28, anchorH: 'l', anchorV: 't', targetH: 16, maxW: 18, z: 13 + i }; out.push({ it: r.it, box: place(mirS(sl), arOf(r), f) }); });
+  out.push({ it: spine.it, box: clamp(place(mirS(spineSlot), arOf(spine), f)) });
+  tops.forEach((r, i) => { const sl = topSlots[i] || topSlots[topSlots.length - 1]; out.push({ it: r.it, box: clamp(place(mirS(sl), arOf(r), f)) }); });
+  accs.forEach((r, i) => { const sl = accSlots[i] || { ax: 6 + (i * 9) % 40, ay: 62 + (i * 4) % 28, anchorH: 'l', anchorV: 't', targetH: 16, maxW: 18, z: 13 + i }; out.push({ it: r.it, box: clamp(place(mirS(sl), arOf(r), f)) }); });
   return out;
 }
 
