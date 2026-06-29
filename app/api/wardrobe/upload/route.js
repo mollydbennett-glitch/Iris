@@ -44,14 +44,35 @@ export async function POST(request) {
     const base64 = buffer.toString('base64');
     const mediaType = 'image/jpeg';
 
+    const supabaseAdmin = getSupabaseAdmin();
+
+    // 0) Look up the user's styling guidance so tagging only asks about
+    //    color season / body type when those are actually turned on.
+    let tagOpts = {};
+    try {
+      const { data: settings } = await supabaseAdmin
+        .from('user_settings')
+        .select('styling_rules')
+        .eq('user_id', PHASE1_USER_ID)
+        .maybeSingle();
+      const rules = settings?.styling_rules || {};
+      if (rules.color_season?.enabled && rules.color_season?.season) {
+        tagOpts.colorSeason = rules.color_season.season;
+      }
+      if (rules.body_type?.enabled && rules.body_type?.type) {
+        tagOpts.bodyType = rules.body_type.type;
+      }
+    } catch (e) {
+      // no settings yet is fine — just tag without the optional fields
+    }
+
     // 1) Ask Claude to tag the item.
-    const tags = await tagClothingImage(base64, mediaType);
+    const tags = await tagClothingImage(base64, mediaType, tagOpts);
 
     // 2) Upload the image to Supabase Storage.
     const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`;
     const storagePath = `${PHASE1_USER_ID}/${filename}`;
 
-    const supabaseAdmin = getSupabaseAdmin();
     const { error: uploadError } = await supabaseAdmin.storage
       .from('wardrobe')
       .upload(storagePath, buffer, { contentType: 'image/jpeg', upsert: false });
@@ -96,6 +117,14 @@ export async function POST(request) {
         season: tags.season ?? null,
         style_vibe: tags.style_vibe ?? null,
         silhouette: tags.silhouette ?? null,
+        // new Phase A tags
+        formality: tags.formality ?? null,
+        proportion_descriptors: tags.proportion_descriptors ?? null,
+        color_role: tags.color_role ?? null,
+        statement_level: tags.statement_level ?? null,
+        color_season_alignment: tags.color_season_alignment ?? null,
+        body_type_notes: tags.body_type_notes ?? null,
+        // full raw tag payloads
         ai_tags: tags,
         user_verified_tags: tags,
       })
