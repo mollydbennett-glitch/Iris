@@ -13,64 +13,43 @@ function Cell({ it, style }) {
   );
 }
 
-// Packed-grid flat-lay: cells tile the whole frame with no gaps, so there's
-// almost no white space. The long piece (bottom or dress) runs full height
-// down the right; everything else stacks and fills the left.
+// Uniform packed grid: cells tile the frame with no gaps and stay near-square,
+// so no piece gets a giant tall/wide slot full of white. Odd last item spans
+// the full width. Cards are small and shown two-up, so white reads as minimal.
 function FlatLay({ outfit }) {
   const items = outfit.items;
-  const tall = items.find((i) => i.category === 'bottom') || items.find((i) => i.category === 'dress');
-  const rest = tall ? items.filter((i) => i !== tall) : items;
-
-  const header = (
-    <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 12, paddingLeft: 2 }}>
-      <span style={{ fontFamily: 'Georgia, serif', fontStyle: 'italic', fontSize: 18, color: 'var(--ink)' }}>Iris</span>
-      <span style={{ fontFamily: 'Georgia, serif', fontSize: 19, color: 'var(--ink)' }}>{outfit.title}</span>
-    </div>
-  );
-
-  const canvasBase = {
-    position: 'relative',
-    width: '100%',
-    background: '#fff',
-    border: '1px solid var(--line)',
-    borderRadius: 6,
-    overflow: 'hidden',
-  };
-
-  const watermark = (
-    <span style={{ position: 'absolute', bottom: 8, right: 12, fontFamily: 'Georgia, serif', fontStyle: 'italic', fontSize: 13, color: 'var(--line)', letterSpacing: 1, zIndex: 5 }}>Iris</span>
-  );
-
-  // Preferred layout: tall piece full-height on the right, the rest stacked left.
-  if (tall && rest.length >= 1) {
-    const rows = rest.length;
-    const ratio = Math.min(1.3, Math.max(0.82, rows * 0.46));
-    return (
-      <div>
-        {header}
-        <div style={{ ...canvasBase, aspectRatio: `1 / ${ratio}`, display: 'grid', gridTemplateColumns: '1fr 1fr', gridTemplateRows: `repeat(${rows}, 1fr)`, gap: 0 }}>
-          {rest.map((it, i) => (
-            <Cell key={it.id} it={it} style={{ gridColumn: 1, gridRow: i + 1 }} />
-          ))}
-          <Cell it={tall} style={{ gridColumn: 2, gridRow: `1 / ${rows + 1}` }} />
-          {watermark}
-        </div>
-      </div>
-    );
-  }
-
-  // Fallback: balanced grid that fills the frame for any other item set.
   const n = items.length;
-  const cols = n <= 1 ? 1 : 2;
-  const gridRows = Math.ceil(n / cols);
+  const cols = n === 1 ? 1 : 2;
+  const rows = Math.ceil(n / cols);
+  const oddSpan = n > 1 && n % 2 === 1;
+
   return (
     <div>
-      {header}
-      <div style={{ ...canvasBase, aspectRatio: `1 / ${Math.min(1.25, Math.max(0.8, gridRows * 0.5))}`, display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gridAutoRows: '1fr', gap: 0 }}>
-        {items.map((it) => (
-          <Cell key={it.id} it={it} style={{}} />
-        ))}
-        {watermark}
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 8, paddingLeft: 1 }}>
+        <span style={{ fontFamily: 'Georgia, serif', fontStyle: 'italic', fontSize: 15, color: 'var(--ink)' }}>Iris</span>
+        <span style={{ fontFamily: 'Georgia, serif', fontSize: 16, color: 'var(--ink)' }}>{outfit.title}</span>
+      </div>
+      <div
+        style={{
+          position: 'relative',
+          width: '100%',
+          aspectRatio: `${cols} / ${rows}`,
+          background: '#fff',
+          border: '1px solid var(--line)',
+          borderRadius: 5,
+          overflow: 'hidden',
+          display: 'grid',
+          gridTemplateColumns: `repeat(${cols}, 1fr)`,
+          gridAutoRows: '1fr',
+          gap: 0,
+        }}
+      >
+        {items.map((it, i) => {
+          const isLast = i === n - 1;
+          const span = oddSpan && isLast ? { gridColumn: '1 / 3' } : {};
+          return <Cell key={it.id} it={it} style={span} />;
+        })}
+        <span style={{ position: 'absolute', bottom: 6, right: 9, fontFamily: 'Georgia, serif', fontStyle: 'italic', fontSize: 11, color: 'var(--line)', letterSpacing: 1, zIndex: 5 }}>Iris</span>
       </div>
     </div>
   );
@@ -168,9 +147,9 @@ export default function StylePage() {
       )}
 
       {outfits && outfits.length > 0 && (
-        <div style={{ marginTop: 24, display: 'flex', flexDirection: 'column', gap: 36, alignItems: 'center' }}>
+        <div style={{ marginTop: 24, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 30 }}>
           {outfits.map((o, idx) => (
-            <div key={idx} style={{ width: '100%', maxWidth: 460 }}>
+            <div key={idx}>
               <FlatLay outfit={o} />
               <div style={{ padding: '14px 4px 0' }}>
                 {o.why && <p style={{ fontSize: 14, lineHeight: 1.55, margin: 0 }}>{o.why}</p>}
