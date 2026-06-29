@@ -4,12 +4,13 @@ import { useState } from 'react';
 
 const OCCASIONS = ['Everyday', 'Work', 'Dinner', 'Date night', 'Weekend', 'Event / party', 'Workout', 'Trip'];
 
-// ---- Spine flat-lay layout -------------------------------------------------
-// One flexible recipe (from the stylistcheck references): the longest vertical
-// piece becomes the "spine" and runs full height down one side; the other
-// garments sit big up top; accessories cluster small in the lower opposite
-// corner. Pieces are scaled up to command the white. Spine side alternates per
-// outfit so looks don't come out as identical twins. Grows to any piece count.
+// ---- Charcuterie flat-lay -------------------------------------------------
+// Pack like a charcuterie board: pieces big, scaled by role, edges bleeding off
+// the frame, smaller pieces layered on top of bigger ones, minimal gaps. Works
+// because cutouts are transparent, so overlap reads as a real flat-lay pile.
+// The longest vertical piece anchors one side; garments sit big up top;
+// accessories cluster lower. Spine side alternates so looks aren't twins. Frame
+// height is tuned to the piece count so it stays dense, never sparse.
 
 function roleOf(it) {
   const c = ((it.category || '') + ' ' + (it.subcategory || '')).toLowerCase();
@@ -27,47 +28,83 @@ function roleOf(it) {
 }
 
 const GARMENT = new Set(['outer', 'top', 'bottomLong', 'bottomShort']);
-// spine preference: tallest vertical anchor first
 const SPINE_PREF = ['dress', 'bottomLong', 'outer', 'top', 'bottomShort'];
-// accessory sizing as % of the cluster band width, plus box aspect ratio
-const ACC = {
-  bag:     { w: 47, ar: '1 / 1' },
-  shoes:   { w: 45, ar: '1 / 1' },
-  accMed:  { w: 39, ar: '1 / 1' },
-  sunnies: { w: 38, ar: '3 / 2' },
-  jewel:   { w: 25, ar: '1 / 1' },
-};
 const ACC_RANK = { bag: 0, shoes: 1, accMed: 2, sunnies: 3, jewel: 4 };
 
-function buildLayout(items) {
+function srcOf(it) { return it.cutout_url || it.image_url; }
+function flipPos(p) { if (!p) return 'center'; return p.replace('left', '\u00a7').replace('right', 'left').replace('\u00a7', 'right'); }
+
+function aspectFor(n, hasTops) {
+  if (!hasTops) { if (n <= 3) return '1 / 1'; if (n <= 4) return '6 / 7'; return '4 / 5'; }
+  if (n <= 3) return '6 / 7';
+  if (n <= 4) return '5 / 6';
+  if (n <= 5) return '4 / 5';
+  if (n <= 7) return '3 / 4';
+  return '5 / 7';
+}
+
+function planBoxes(items, idx) {
   const roled = items.map((it) => ({ it, role: roleOf(it) }));
+  const spineRight = idx % 2 === 0;
   let spine = null;
-  for (const want of SPINE_PREF) {
-    spine = roled.find((r) => r.role === want);
-    if (spine) break;
-  }
+  for (const w of SPINE_PREF) { spine = roled.find((r) => r.role === w); if (spine) break; }
   if (!spine) spine = roled[0];
   const rest = roled.filter((r) => r !== spine);
   const tops = rest.filter((r) => GARMENT.has(r.role));
   const accs = rest.filter((r) => !GARMENT.has(r.role));
   accs.sort((a, b) => (ACC_RANK[a.role] ?? 2) - (ACC_RANK[b.role] ?? 2));
-  return { spine, tops, accs };
-}
+  const n = items.length;
+  const hasTops = tops.length > 0;
+  const out = [];
+  const mir = (b) => (spineRight ? b : { ...b, left: 100 - b.left - b.width, pos: flipPos(b.pos) });
 
-function srcOf(it) { return it.cutout_url || it.image_url; }
+  const spineBox = hasTops
+    ? { left: 50, top: -3, width: 53, height: 106, z: 1, pos: 'center' }
+    : { left: 44, top: -2, width: 56, height: 104, z: 1, pos: 'center' };
+  out.push({ it: spine.it, box: mir(spineBox) });
+
+  if (tops.length === 1) {
+    out.push({ it: tops[0].it, box: mir({ left: -3, top: -2, width: 57, height: 56, z: 2, pos: 'left top' }) });
+  } else if (tops.length === 2) {
+    out.push({ it: tops[0].it, box: mir({ left: -4, top: -2, width: 40, height: 54, z: 2, pos: 'left top' }) });
+    out.push({ it: tops[1].it, box: mir({ left: 28, top: 2, width: 32, height: 46, z: 3, pos: 'center top' }) });
+  } else if (tops.length >= 3) {
+    out.push({ it: tops[0].it, box: mir({ left: -4, top: -2, width: 36, height: 50, z: 2, pos: 'left top' }) });
+    out.push({ it: tops[1].it, box: mir({ left: 26, top: -2, width: 32, height: 44, z: 3, pos: 'center top' }) });
+    out.push({ it: tops[2].it, box: mir({ left: 8, top: 30, width: 34, height: 36, z: 4, pos: 'center' }) });
+    for (let i = 3; i < tops.length; i++) out.push({ it: tops[i].it, box: mir({ left: 30, top: 28, width: 26, height: 32, z: 4 + i, pos: 'center' }) });
+  }
+
+  const accSlots = hasTops ? [
+    { left: -2, top: 50, width: 34, height: 38, z: 5 },
+    { left: 23, top: 54, width: 36, height: 38, z: 6 },
+    { left: 2, top: 38, width: 30, height: 16, z: 9 },
+    { left: 34, top: 44, width: 17, height: 17, z: 10 },
+    { left: 12, top: 84, width: 19, height: 17, z: 11 },
+    { left: 37, top: 80, width: 16, height: 16, z: 12 },
+  ] : [
+    { left: 2, top: 4, width: 46, height: 40, z: 5 },
+    { left: 6, top: 46, width: 44, height: 42, z: 6 },
+    { left: 30, top: 30, width: 24, height: 22, z: 9 },
+    { left: 4, top: 84, width: 22, height: 16, z: 10 },
+    { left: 32, top: 78, width: 20, height: 18, z: 11 },
+    { left: 18, top: 20, width: 16, height: 16, z: 12 },
+  ];
+  accs.forEach((r, i) => {
+    const sl = accSlots[i] || { left: 6 + (i * 7) % 40, top: 60 + (i * 5) % 30, width: 16, height: 16, z: 13 + i };
+    const b = { ...sl };
+    if (r.role === 'jewel') { b.width *= 0.72; b.height *= 0.72; }
+    if (r.role === 'sunnies') { b.height = b.width * 0.55; }
+    out.push({ it: r.it, box: mir({ ...b, pos: 'center' }) });
+  });
+
+  return { boxes: out, aspect: aspectFor(n, hasTops) };
+}
 
 function FlatLay({ outfit, idx = 0 }) {
   const items = outfit.items || [];
   if (!items.length) return null;
-  const { spine, tops, accs } = buildLayout(items);
-  const total = items.length;
-  const spineRight = idx % 2 === 0;
-
-  const aspect = total <= 3 ? '1 / 1' : total <= 4 ? '6 / 7' : total <= 5 ? '4 / 5' : '3 / 4';
-  const spineW = spine.role === 'dress' ? 46 : GARMENT.has(spine.role) && spine.role !== 'top' && spine.role !== 'outer' ? 44 : 42;
-  const topsFlex = tops.length >= 2 ? 1.25 : 1.1;
-  const accFlex = accs.length ? Math.min(1.75, 0.55 + accs.length * 0.22) : 0;
-  const topEdge = spineRight ? 'left top' : 'right top';
+  const { boxes, aspect } = planBoxes(items, idx);
 
   return (
     <div>
@@ -84,44 +121,28 @@ function FlatLay({ outfit, idx = 0 }) {
           border: '1px solid var(--line)',
           borderRadius: 5,
           overflow: 'hidden',
-          display: 'flex',
-          flexDirection: spineRight ? 'row-reverse' : 'row',
         }}
       >
-        <div style={{ flex: `0 0 ${spineW}%`, display: 'flex', padding: 6, minWidth: 0 }}>
-          <img
-            src={srcOf(spine.it)}
-            alt=""
-            style={{ width: '100%', height: '100%', objectFit: 'contain', objectPosition: spineRight ? 'right top' : 'left top', display: 'block' }}
-          />
-        </div>
-
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: 6, minWidth: 0 }}>
-          {tops.length > 0 && (
-            <div style={{ flex: topsFlex, display: 'flex', flexWrap: 'wrap', gap: '3%', minHeight: 0 }}>
-              {tops.map((r) => (
-                <div key={r.it.id} style={{ flex: tops.length >= 2 ? '1 1 45%' : '1 1 100%', display: 'flex', minWidth: 0, minHeight: 0 }}>
-                  <img src={srcOf(r.it)} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain', objectPosition: topEdge, display: 'block' }} />
-                </div>
-              ))}
-            </div>
-          )}
-
-          {accs.length > 0 && (
-            <div style={{ flex: accFlex, display: 'flex', flexWrap: 'wrap', alignContent: 'center', justifyContent: 'center', gap: '4%', minHeight: 0, paddingTop: tops.length ? 4 : 0 }}>
-              {accs.map((r) => {
-                const a = ACC[r.role] || ACC.accMed;
-                return (
-                  <div key={r.it.id} style={{ flex: `0 0 ${a.w}%`, aspectRatio: a.ar, display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: 0 }}>
-                    <img src={srcOf(r.it)} alt="" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', display: 'block' }} />
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        <span style={{ position: 'absolute', bottom: 6, right: 9, fontFamily: 'Georgia, serif', fontStyle: 'italic', fontSize: 11, color: 'var(--line)', letterSpacing: 1, zIndex: 5 }}>Iris</span>
+        {boxes.map(({ it, box }) => (
+          <div
+            key={it.id}
+            style={{
+              position: 'absolute',
+              left: `${box.left}%`,
+              top: `${box.top}%`,
+              width: `${box.width}%`,
+              height: `${box.height}%`,
+              zIndex: box.z,
+            }}
+          >
+            <img
+              src={srcOf(it)}
+              alt=""
+              style={{ width: '100%', height: '100%', objectFit: 'contain', objectPosition: box.pos, display: 'block' }}
+            />
+          </div>
+        ))}
+        <span style={{ position: 'absolute', bottom: 6, right: 9, fontFamily: 'Georgia, serif', fontStyle: 'italic', fontSize: 11, color: 'var(--line)', letterSpacing: 1, zIndex: 50 }}>Iris</span>
       </div>
     </div>
   );
