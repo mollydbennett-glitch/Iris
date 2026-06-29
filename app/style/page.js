@@ -1,16 +1,16 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 const OCCASIONS = ['Everyday', 'Work', 'Dinner', 'Date night', 'Weekend', 'Event / party', 'Workout', 'Trip'];
 
-// ---- Charcuterie flat-lay -------------------------------------------------
-// Pack like a charcuterie board: pieces big, scaled by role, edges bleeding off
-// the frame, smaller pieces layered on top of bigger ones, minimal gaps. Works
-// because cutouts are transparent, so overlap reads as a real flat-lay pile.
-// The longest vertical piece anchors one side; garments sit big up top;
-// accessories cluster lower. Spine side alternates so looks aren't twins. Frame
-// height is tuned to the piece count so it stays dense, never sparse.
+// ---- Aspect-aware flat-lay ------------------------------------------------
+// Pack like a charcuterie board: every piece is sized to its OWN proportions
+// (measured from the image) so it fills its spot instead of floating in a box.
+// Bigger pieces dominate, accessories stay small, smaller pieces layer on top,
+// edges bleed off the frame. The longest vertical piece anchors one side; the
+// spine side alternates per outfit. Cards are all one size; a count-based scale
+// factor makes sparse looks bigger so the frame never goes empty.
 
 function roleOf(it) {
   const c = ((it.category || '') + ' ' + (it.subcategory || '')).toLowerCase();
@@ -30,20 +30,21 @@ function roleOf(it) {
 const GARMENT = new Set(['outer', 'top', 'bottomLong', 'bottomShort']);
 const SPINE_PREF = ['dress', 'bottomLong', 'outer', 'top', 'bottomShort'];
 const ACC_RANK = { bag: 0, shoes: 1, accMed: 2, sunnies: 3, jewel: 4 };
+const DEFAULT_AR = { dress: 0.42, bottomLong: 0.45, bottomShort: 1.05, outer: 0.92, top: 0.95, shoes: 1.45, bag: 1.3, sunnies: 2.3, jewel: 1.0, accMed: 1.3 };
 
 function srcOf(it) { return it.cutout_url || it.image_url; }
-function flipPos(p) { if (!p) return 'center'; return p.replace('left', '\u00a7').replace('right', 'left').replace('\u00a7', 'right'); }
 
-function aspectFor(n, hasTops) {
-  if (!hasTops) { if (n <= 3) return '1 / 1'; if (n <= 4) return '6 / 7'; return '4 / 5'; }
-  if (n <= 3) return '6 / 7';
-  if (n <= 4) return '5 / 6';
-  if (n <= 5) return '4 / 5';
-  if (n <= 7) return '3 / 4';
-  return '5 / 7';
+function place(slot, ar, f, maxH) {
+  let h = Math.min(slot.targetH * f, maxH || 108);
+  let w = h * ar;
+  const mw = slot.maxW * f;
+  if (w > mw) { w = mw; h = w / ar; }
+  const left = slot.anchorH === 'l' ? slot.ax : slot.ax - w;
+  const top = slot.anchorV === 't' ? slot.ay : slot.ay - h;
+  return { left, top, width: w, height: h, z: slot.z, pos: slot.pos || 'center' };
 }
 
-function planBoxes(items, idx) {
+function planBoxes(items, idx, aspects) {
   const roled = items.map((it) => ({ it, role: roleOf(it) }));
   const spineRight = idx % 2 === 0;
   let spine = null;
@@ -55,56 +56,66 @@ function planBoxes(items, idx) {
   accs.sort((a, b) => (ACC_RANK[a.role] ?? 2) - (ACC_RANK[b.role] ?? 2));
   const n = items.length;
   const hasTops = tops.length > 0;
-  const out = [];
-  const mir = (b) => (spineRight ? b : { ...b, left: 100 - b.left - b.width, pos: flipPos(b.pos) });
+  const f = Math.max(0.82, Math.min(1.22, 1 + (5 - n) * 0.06));
+  const arOf = (r) => (aspects && aspects[r.it.id]) || DEFAULT_AR[r.role] || 1;
 
-  const spineBox = hasTops
-    ? { left: 50, top: -3, width: 53, height: 106, z: 1, pos: 'center' }
-    : { left: 44, top: -2, width: 56, height: 104, z: 1, pos: 'center' };
-  out.push({ it: spine.it, box: mir(spineBox) });
-
-  if (tops.length === 1) {
-    out.push({ it: tops[0].it, box: mir({ left: -3, top: -2, width: 57, height: 56, z: 2, pos: 'left top' }) });
-  } else if (tops.length === 2) {
-    out.push({ it: tops[0].it, box: mir({ left: -4, top: -2, width: 40, height: 54, z: 2, pos: 'left top' }) });
-    out.push({ it: tops[1].it, box: mir({ left: 28, top: 2, width: 32, height: 46, z: 3, pos: 'center top' }) });
-  } else if (tops.length >= 3) {
-    out.push({ it: tops[0].it, box: mir({ left: -4, top: -2, width: 36, height: 50, z: 2, pos: 'left top' }) });
-    out.push({ it: tops[1].it, box: mir({ left: 26, top: -2, width: 32, height: 44, z: 3, pos: 'center top' }) });
-    out.push({ it: tops[2].it, box: mir({ left: 8, top: 30, width: 34, height: 36, z: 4, pos: 'center' }) });
-    for (let i = 3; i < tops.length; i++) out.push({ it: tops[i].it, box: mir({ left: 30, top: 28, width: 26, height: 32, z: 4 + i, pos: 'center' }) });
-  }
-
+  const spineSlot = hasTops
+    ? { ax: 104, ay: -1, anchorH: 'r', anchorV: 't', targetH: 101, maxW: 55, z: 1 }
+    : { ax: 104, ay: -1, anchorH: 'r', anchorV: 't', targetH: 101, maxW: 58, z: 1 };
+  let topSlots = [];
+  if (tops.length === 1) topSlots = [{ ax: -4, ay: -2, anchorH: 'l', anchorV: 't', targetH: 60, maxW: 60, z: 2 }];
+  else if (tops.length === 2) topSlots = [
+    { ax: -4, ay: -2, anchorH: 'l', anchorV: 't', targetH: 56, maxW: 42, z: 2 },
+    { ax: 30, ay: 1, anchorH: 'l', anchorV: 't', targetH: 50, maxW: 34, z: 3 }];
+  else topSlots = [
+    { ax: -4, ay: -2, anchorH: 'l', anchorV: 't', targetH: 52, maxW: 38, z: 2 },
+    { ax: 26, ay: -2, anchorH: 'l', anchorV: 't', targetH: 46, maxW: 33, z: 3 },
+    { ax: 6, ay: 30, anchorH: 'l', anchorV: 't', targetH: 38, maxW: 36, z: 4 },
+    { ax: 30, ay: 28, anchorH: 'l', anchorV: 't', targetH: 34, maxW: 28, z: 5 }];
   const accSlots = hasTops ? [
-    { left: -2, top: 50, width: 34, height: 38, z: 5 },
-    { left: 23, top: 54, width: 36, height: 38, z: 6 },
-    { left: 2, top: 38, width: 30, height: 16, z: 9 },
-    { left: 34, top: 44, width: 17, height: 17, z: 10 },
-    { left: 12, top: 84, width: 19, height: 17, z: 11 },
-    { left: 37, top: 80, width: 16, height: 16, z: 12 },
+    { ax: -3, ay: 50, anchorH: 'l', anchorV: 't', targetH: 42, maxW: 42, z: 6 },
+    { ax: 24, ay: 55, anchorH: 'l', anchorV: 't', targetH: 42, maxW: 42, z: 7 },
+    { ax: 0, ay: 38, anchorH: 'l', anchorV: 't', targetH: 20, maxW: 36, z: 9 },
+    { ax: 37, ay: 46, anchorH: 'l', anchorV: 't', targetH: 19, maxW: 22, z: 10 },
+    { ax: 9, ay: 84, anchorH: 'l', anchorV: 't', targetH: 19, maxW: 26, z: 11 },
+    { ax: 39, ay: 81, anchorH: 'l', anchorV: 't', targetH: 17, maxW: 20, z: 12 },
   ] : [
-    { left: 2, top: 4, width: 46, height: 40, z: 5 },
-    { left: 6, top: 46, width: 44, height: 42, z: 6 },
-    { left: 30, top: 30, width: 24, height: 22, z: 9 },
-    { left: 4, top: 84, width: 22, height: 16, z: 10 },
-    { left: 32, top: 78, width: 20, height: 18, z: 11 },
-    { left: 18, top: 20, width: 16, height: 16, z: 12 },
+    { ax: 0, ay: 1, anchorH: 'l', anchorV: 't', targetH: 48, maxW: 50, z: 6 },
+    { ax: 2, ay: 50, anchorH: 'l', anchorV: 't', targetH: 48, maxW: 50, z: 7 },
+    { ax: 30, ay: 30, anchorH: 'l', anchorV: 't', targetH: 26, maxW: 28, z: 9 },
+    { ax: 2, ay: 84, anchorH: 'l', anchorV: 't', targetH: 20, maxW: 26, z: 10 },
+    { ax: 30, ay: 80, anchorH: 'l', anchorV: 't', targetH: 18, maxW: 22, z: 11 },
+    { ax: 16, ay: 18, anchorH: 'l', anchorV: 't', targetH: 17, maxW: 20, z: 12 },
   ];
-  accs.forEach((r, i) => {
-    const sl = accSlots[i] || { left: 6 + (i * 7) % 40, top: 60 + (i * 5) % 30, width: 16, height: 16, z: 13 + i };
-    const b = { ...sl };
-    if (r.role === 'jewel') { b.width *= 0.72; b.height *= 0.72; }
-    if (r.role === 'sunnies') { b.height = b.width * 0.55; }
-    out.push({ it: r.it, box: mir({ ...b, pos: 'center' }) });
-  });
 
-  return { boxes: out, aspect: aspectFor(n, hasTops) };
+  const mirS = (sl) => (spineRight ? sl : { ...sl, ax: 100 - sl.ax, anchorH: sl.anchorH === 'l' ? 'r' : 'l', pos: 'center' });
+  const out = [];
+  out.push({ it: spine.it, box: place(mirS(spineSlot), arOf(spine), f) });
+  tops.forEach((r, i) => { const sl = topSlots[i] || topSlots[topSlots.length - 1]; out.push({ it: r.it, box: place(mirS(sl), arOf(r), f) }); });
+  accs.forEach((r, i) => { const sl = accSlots[i] || { ax: 6 + (i * 9) % 40, ay: 62 + (i * 4) % 28, anchorH: 'l', anchorV: 't', targetH: 16, maxW: 18, z: 13 + i }; out.push({ it: r.it, box: place(mirS(sl), arOf(r), f) }); });
+  return out;
 }
 
 function FlatLay({ outfit, idx = 0 }) {
   const items = outfit.items || [];
+  const [aspects, setAspects] = useState({});
+
+  useEffect(() => {
+    let alive = true;
+    items.forEach((it) => {
+      const im = new window.Image();
+      im.onload = () => {
+        if (!alive || !im.naturalWidth || !im.naturalHeight) return;
+        setAspects((prev) => (prev[it.id] ? prev : { ...prev, [it.id]: im.naturalWidth / im.naturalHeight }));
+      };
+      im.src = srcOf(it);
+    });
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [outfit]);
+
   if (!items.length) return null;
-  const { boxes, aspect } = planBoxes(items, idx);
+  const boxes = planBoxes(items, idx, aspects);
 
   return (
     <div>
@@ -116,7 +127,7 @@ function FlatLay({ outfit, idx = 0 }) {
         style={{
           position: 'relative',
           width: '100%',
-          aspectRatio: aspect,
+          aspectRatio: '4 / 5',
           background: '#fff',
           border: '1px solid var(--line)',
           borderRadius: 5,
@@ -142,7 +153,7 @@ function FlatLay({ outfit, idx = 0 }) {
             />
           </div>
         ))}
-        <span style={{ position: 'absolute', bottom: 6, right: 9, fontFamily: 'Georgia, serif', fontStyle: 'italic', fontSize: 11, color: 'var(--line)', letterSpacing: 1, zIndex: 50 }}>Iris</span>
+        <span style={{ position: 'absolute', bottom: 6, right: 9, fontFamily: 'Georgia, serif', fontStyle: 'italic', fontSize: 11, color: 'var(--line)', letterSpacing: 1, zIndex: 60 }}>Iris</span>
       </div>
     </div>
   );
