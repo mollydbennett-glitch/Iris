@@ -13,6 +13,7 @@ export default function RootLayout({ children }) {
           <div className="wrap topbar-inner">
             <a href="/" className="brand">Iris</a>
             <a href="/style" className="navlink">What to wear</a>
+            <a href="/saved" className="navlink">Saved</a>
             <a href="/wardrobe" className="navlink">Wardrobe</a>
             <a href="/upload" className="navlink">Add items</a>
             <a href="/settings" className="navlink">Settings</a>
