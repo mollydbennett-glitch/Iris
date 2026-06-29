@@ -4,76 +4,73 @@ import { useState } from 'react';
 
 const OCCASIONS = ['Everyday', 'Work', 'Dinner', 'Date night', 'Weekend', 'Event / party', 'Workout', 'Trip'];
 
-function PositionedItem({ it, slot, z }) {
+function Cell({ it, style }) {
   const src = it.cutout_url || it.image_url;
   return (
-    <div
-      style={{
-        position: 'absolute',
-        ...slot,
-        zIndex: z,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
-    >
+    <div style={{ ...style, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 4, minWidth: 0, minHeight: 0, overflow: 'hidden' }}>
       <img src={src} alt="" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', display: 'block' }} />
     </div>
   );
 }
 
-// Layered flat-lay modeled on the references: hero garments large and bleeding
-// off the edges, accessories sized down and tucked into the gaps, everything
-// overlapping with deliberate front-to-back order so it reads as one styled pile.
+// Packed-grid flat-lay: cells tile the whole frame with no gaps, so there's
+// almost no white space. The long piece (bottom or dress) runs full height
+// down the right; everything else stacks and fills the left.
 function FlatLay({ outfit }) {
   const items = outfit.items;
-  const tops = items.filter((i) => ['top', 'dress', 'outerwear'].includes(i.category));
-  const bottom = items.find((i) => i.category === 'bottom');
+  const tall = items.find((i) => i.category === 'bottom') || items.find((i) => i.category === 'dress');
+  const rest = tall ? items.filter((i) => i !== tall) : items;
 
-  const rightItem = bottom || tops[0];           // jeans/pants, or a dress if no bottom
-  const leftTop = bottom ? tops[0] : tops[1];     // top garment, upper-left
-  const secondTop = bottom ? tops[1] : tops[2];   // optional layering piece, center
-  const used = new Set([rightItem, leftTop, secondTop].filter(Boolean));
-  const extras = items.filter((i) => !used.has(i));
+  const header = (
+    <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 12, paddingLeft: 2 }}>
+      <span style={{ fontFamily: 'Georgia, serif', fontStyle: 'italic', fontSize: 18, color: 'var(--ink)' }}>Iris</span>
+      <span style={{ fontFamily: 'Georgia, serif', fontSize: 19, color: 'var(--ink)' }}>{outfit.title}</span>
+    </div>
+  );
 
-  // Overlapping accessory cluster, lower-left into center. Each piece overlaps
-  // its neighbors and the garment hems, like the references.
-  const accSlots = [
-    { left: '0%', top: '58%', width: '32%', height: '34%' },
-    { left: '23%', top: '67%', width: '34%', height: '31%' },
-    { left: '7%', top: '45%', width: '23%', height: '21%' },
-    { left: '30%', top: '47%', width: '21%', height: '19%' },
-    { left: '17%', top: '82%', width: '23%', height: '17%' },
-  ];
+  const canvasBase = {
+    position: 'relative',
+    width: '100%',
+    background: '#fff',
+    border: '1px solid var(--line)',
+    borderRadius: 6,
+    overflow: 'hidden',
+  };
 
+  const watermark = (
+    <span style={{ position: 'absolute', bottom: 8, right: 12, fontFamily: 'Georgia, serif', fontStyle: 'italic', fontSize: 13, color: 'var(--line)', letterSpacing: 1, zIndex: 5 }}>Iris</span>
+  );
+
+  // Preferred layout: tall piece full-height on the right, the rest stacked left.
+  if (tall && rest.length >= 1) {
+    const rows = rest.length;
+    const ratio = Math.min(1.3, Math.max(0.82, rows * 0.46));
+    return (
+      <div>
+        {header}
+        <div style={{ ...canvasBase, aspectRatio: `1 / ${ratio}`, display: 'grid', gridTemplateColumns: '1fr 1fr', gridTemplateRows: `repeat(${rows}, 1fr)`, gap: 0 }}>
+          {rest.map((it, i) => (
+            <Cell key={it.id} it={it} style={{ gridColumn: 1, gridRow: i + 1 }} />
+          ))}
+          <Cell it={tall} style={{ gridColumn: 2, gridRow: `1 / ${rows + 1}` }} />
+          {watermark}
+        </div>
+      </div>
+    );
+  }
+
+  // Fallback: balanced grid that fills the frame for any other item set.
+  const n = items.length;
+  const cols = n <= 1 ? 1 : 2;
+  const gridRows = Math.ceil(n / cols);
   return (
     <div>
-      {/* header sits above the canvas, clean */}
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 12, paddingLeft: 2 }}>
-        <span style={{ fontFamily: 'Georgia, serif', fontStyle: 'italic', fontSize: 18, color: 'var(--ink)' }}>Iris</span>
-        <span style={{ fontFamily: 'Georgia, serif', fontSize: 19, color: 'var(--ink)' }}>{outfit.title}</span>
-      </div>
-
-      <div
-        style={{
-          position: 'relative',
-          width: '100%',
-          aspectRatio: '1 / 1.12',
-          background: '#fff',
-          border: '1px solid var(--line)',
-          borderRadius: 6,
-          overflow: 'hidden',
-        }}
-      >
-        {rightItem && <PositionedItem it={rightItem} z={1} slot={{ top: '-2%', right: '-4%', width: '54%', height: '104%' }} />}
-        {leftTop && <PositionedItem it={leftTop} z={2} slot={{ top: '-2%', left: '-4%', width: '58%', height: '56%' }} />}
-        {secondTop && <PositionedItem it={secondTop} z={3} slot={{ top: '8%', left: '25%', width: '46%', height: '50%' }} />}
-        {extras.map((it, i) => (accSlots[i] ? <PositionedItem key={it.id} it={it} z={4 + i} slot={accSlots[i]} /> : null))}
-
-        {/* faint Iris mark, like the reference watermark */}
-        <span style={{ position: 'absolute', bottom: 10, right: 14, fontFamily: 'Georgia, serif', fontStyle: 'italic', fontSize: 13, color: 'var(--line)', letterSpacing: 1, zIndex: 20 }}>
-          Iris
-        </span>
+      {header}
+      <div style={{ ...canvasBase, aspectRatio: `1 / ${Math.min(1.25, Math.max(0.8, gridRows * 0.5))}`, display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gridAutoRows: '1fr', gap: 0 }}>
+        {items.map((it) => (
+          <Cell key={it.id} it={it} style={{}} />
+        ))}
+        {watermark}
       </div>
     </div>
   );
