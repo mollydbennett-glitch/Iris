@@ -150,7 +150,7 @@ export default function StylePage() {
                       disabled={!o.id || savingId === o.id}
                       style={{ padding: '8px 16px', fontSize: 13 }}
                     >
-                      {isSaved ? '♥ Saved' : '♡ Save'}
+                      {isSaved ? '♥ Kept' : '♡ Keep'}
                     </button>
                   </div>
                 </div>
