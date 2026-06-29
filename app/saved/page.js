@@ -41,8 +41,8 @@ export default function SavedPage() {
 
   return (
     <div>
-      <h1 className="display">Kept looks</h1>
-      <p className="lede">The outfits you’ve kept. Style anytime, plan a week around them later.</p>
+      <h1 className="display">Lookbook</h1>
+      <p className="lede">The looks you’ve loved. Style anytime, drop them onto days in your Planner.</p>
 
       {error && <p className="status err" style={{ display: 'block', marginTop: 16 }}>{error}</p>}
 
@@ -52,7 +52,7 @@ export default function SavedPage() {
 
       {outfits && outfits.length === 0 && (
         <p className="lede" style={{ marginTop: 20 }}>
-          Nothing saved yet. Generate looks on <a href="/style" style={{ color: 'var(--gold)' }}>What to wear</a> and tap the heart to keep the ones you love.
+          Nothing here yet. Generate looks on <a href="/style" style={{ color: 'var(--gold)' }}>Style</a> and tap the heart to love the ones you want to keep.
         </p>
       )}
 
