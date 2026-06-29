@@ -71,7 +71,7 @@ export default function WardrobePage() {
         const data = await res.json();
         if (res.ok && data.cutout_url) {
           done++;
-          setItems((prev) => prev.map((x) => (x.id === todo[i].id ? { ...x, cutout_url: data.cutout_url, cutout_tight: true } : x)));
+          setItems((prev) => prev.map((x) => (x.id === todo[i].id ? { ...x, cutout_url: data.cutout_url, cutout_tight: data.cutout_tight !== false } : x)));
         } else if (!firstError) {
           firstError = data.error || `HTTP ${res.status}`;
           break; // if the first one fails, stop — they'll all fail the same way
@@ -99,7 +99,7 @@ export default function WardrobePage() {
         const res = await fetch(`/api/wardrobe/items/${todo[i].id}/cutout`, { method: 'POST' });
         const data = await res.json();
         if (res.ok && data.cutout_url) {
-          setItems((prev) => prev.map((x) => (x.id === todo[i].id ? { ...x, cutout_url: data.cutout_url, cutout_tight: true } : x)));
+          setItems((prev) => prev.map((x) => (x.id === todo[i].id ? { ...x, cutout_url: data.cutout_url, cutout_tight: data.cutout_tight !== false } : x)));
         } else if (!res.ok && !firstError) {
           firstError = data.error || `HTTP ${res.status}`;
           break;
