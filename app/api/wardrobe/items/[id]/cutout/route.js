@@ -83,13 +83,25 @@ export async function POST(request, { params }) {
     if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 });
 
     const cutoutUrl = supabaseAdmin.storage.from('wardrobe').getPublicUrl(cutoutPath).data.publicUrl;
-    const { error: updErr } = await supabaseAdmin
+
+    // Try to save the new cutout and mark it tightened. If the cutout_tight
+    // column isn't there yet (or the schema cache is stale), still save the
+    // cutout so the tighten actually takes effect — we just can't flag it.
+    let cutoutTight = true;
+    let { error: updErr } = await supabaseAdmin
       .from('wardrobe_items')
       .update({ cutout_url: cutoutUrl, cutout_tight: true })
       .eq('id', id);
+    if (updErr && /cutout_tight/.test(updErr.message || '')) {
+      cutoutTight = false;
+      ({ error: updErr } = await supabaseAdmin
+        .from('wardrobe_items')
+        .update({ cutout_url: cutoutUrl })
+        .eq('id', id));
+    }
     if (updErr) return NextResponse.json({ error: updErr.message }, { status: 500 });
 
-    return NextResponse.json({ ok: true, cutout_url: cutoutUrl, cutout_tight: true });
+    return NextResponse.json({ ok: true, cutout_url: cutoutUrl, cutout_tight: cutoutTight });
   } catch (err) {
     return NextResponse.json({ error: err.message || 'Unknown error' }, { status: 500 });
   }
