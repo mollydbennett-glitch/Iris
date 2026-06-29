@@ -71,7 +71,7 @@ export default function WardrobePage() {
         const data = await res.json();
         if (res.ok && data.cutout_url) {
           done++;
-          setItems((prev) => prev.map((x) => (x.id === todo[i].id ? { ...x, cutout_url: data.cutout_url } : x)));
+          setItems((prev) => prev.map((x) => (x.id === todo[i].id ? { ...x, cutout_url: data.cutout_url, cutout_tight: true } : x)));
         } else if (!firstError) {
           firstError = data.error || `HTTP ${res.status}`;
           break; // if the first one fails, stop — they'll all fail the same way
@@ -85,20 +85,21 @@ export default function WardrobePage() {
     if (firstError) setError(`Background removal failed — ${firstError}`);
   }
 
-  // One click: crop the empty padding off every existing cutout so pieces sit
-  // tight to their edges (and fill the layout). No Photoroom credits used.
+  // One click: re-cut each existing cutout through Photoroom with crop-to-subject
+  // on, so every piece comes back tight to its edges no matter how it was shot.
+  // Only runs on items not already tightened, so the button clears when it's done.
   async function tightenImages() {
     setTightenBusy(true);
     setError('');
-    const todo = items.filter((it) => it.cutout_url);
+    const todo = items.filter((it) => it.cutout_url && !it.cutout_tight);
     let firstError = '';
     for (let i = 0; i < todo.length; i++) {
       setTightenProgress(`${i + 1} / ${todo.length}`);
       try {
-        const res = await fetch(`/api/wardrobe/items/${todo[i].id}/cutout?mode=tighten`, { method: 'POST' });
+        const res = await fetch(`/api/wardrobe/items/${todo[i].id}/cutout`, { method: 'POST' });
         const data = await res.json();
         if (res.ok && data.cutout_url) {
-          setItems((prev) => prev.map((x) => (x.id === todo[i].id ? { ...x, cutout_url: data.cutout_url } : x)));
+          setItems((prev) => prev.map((x) => (x.id === todo[i].id ? { ...x, cutout_url: data.cutout_url, cutout_tight: true } : x)));
         } else if (!res.ok && !firstError) {
           firstError = data.error || `HTTP ${res.status}`;
           break;
@@ -168,12 +169,12 @@ export default function WardrobePage() {
         </div>
       )}
 
-      {!loading && items.some((it) => it.cutout_url) && (
+      {!loading && items.some((it) => it.cutout_url && !it.cutout_tight) && (
         <div style={{ marginTop: 12 }}>
           <button className="btn btn-ghost" style={{ padding: '8px 14px' }} onClick={tightenImages} disabled={tightenBusy}>
-            {tightenBusy ? <><span className="spinner" />&nbsp; Tightening {tightenProgress}</> : `Tighten images (${items.filter((it) => it.cutout_url).length})`}
+            {tightenBusy ? <><span className="spinner" />&nbsp; Tightening {tightenProgress}</> : `Tighten images (${items.filter((it) => it.cutout_url && !it.cutout_tight).length})`}
           </button>
-          <p className="note" style={{ marginTop: 6 }}>Crops the empty padding off your cutouts so pieces fill the outfit boards. No credits used.</p>
+          <p className="note" style={{ marginTop: 6 }}>Re-cuts each piece cropped tight to its edges so it fills the outfit boards.</p>
         </div>
       )}
 
