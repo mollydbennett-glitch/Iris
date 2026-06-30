@@ -28,7 +28,8 @@ export async function POST(request) {
         .from('wardrobe_items')
         .select('*')
         .eq('user_id', PHASE1_USER_ID)
-        .eq('is_active', true),
+        .eq('is_active', true)
+        .eq('status', 'owned'),
       supabaseAdmin
         .from('user_settings')
         .select('*')
