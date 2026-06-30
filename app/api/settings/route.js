@@ -7,6 +7,7 @@ export const dynamic = 'force-dynamic';
 const DEFAULTS = {
   default_location: '',
   style_signature: { leanPolished: 50, leanStatement: 50, references: [], contrast: 'balanced' },
+  styling_rules: { body_type: { enabled: false, type: '' }, color_season: { enabled: false, season: '' } },
 };
 
 export async function GET() {
@@ -22,6 +23,7 @@ export async function GET() {
     settings: {
       default_location: data.default_location || '',
       style_signature: data.style_signature || DEFAULTS.style_signature,
+      styling_rules: data.styling_rules || DEFAULTS.styling_rules,
     },
   });
 }
@@ -30,14 +32,14 @@ export async function PUT(request) {
   try {
     const body = await request.json();
     const supabaseAdmin = getSupabaseAdmin();
-    const { error } = await supabaseAdmin
-      .from('user_settings')
-      .upsert({
-        user_id: PHASE1_USER_ID,
-        default_location: body.default_location ?? '',
-        style_signature: body.style_signature ?? DEFAULTS.style_signature,
-        updated_at: new Date().toISOString(),
-      });
+    const row = {
+      user_id: PHASE1_USER_ID,
+      default_location: body.default_location ?? '',
+      style_signature: body.style_signature ?? DEFAULTS.style_signature,
+      updated_at: new Date().toISOString(),
+    };
+    if (body.styling_rules !== undefined) row.styling_rules = body.styling_rules;
+    const { error } = await supabaseAdmin.from('user_settings').upsert(row);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ ok: true });
   } catch (err) {
