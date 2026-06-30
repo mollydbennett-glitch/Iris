@@ -41,12 +41,14 @@ export default function PlannerPage() {
   const [busyDate, setBusyDate] = useState(null);
 
   const [showCreate, setShowCreate] = useState(false);
+  const [cType, setCType] = useState('trip');
   const [cLoc, setCLoc] = useState('');
   const [cName, setCName] = useState('');
   const [cStart, setCStart] = useState(today);
   const [cDays, setCDays] = useState(5);
   const [renaming, setRenaming] = useState(null);
   const [renameVal, setRenameVal] = useState('');
+  const [dragOverDate, setDragOverDate] = useState(null);
 
   const load = useCallback(async (start) => {
     setLoading(true);
@@ -102,10 +104,13 @@ export default function PlannerPage() {
       setDetail({ open: true, loading: false, look: d.look, dayLookId });
     } catch { setDetail({ open: false, loading: false, look: null, dayLookId: null }); }
   }
-  async function createTrip() {
-    const end = shift(cStart, Math.max(1, Number(cDays)) - 1);
-    const res = await fetch('/api/plans', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: cName.trim() || null, location: cLoc.trim() || null, start_date: cStart, end_date: end }) });
-    if (res.ok) { setShowCreate(false); setCName(''); setCLoc(''); setWeekStart(weekMonday(cStart)); }
+  async function createPlan() {
+    let start = cStart, end;
+    if (cType === 'week') { start = weekMonday(cStart); end = shift(start, 6); }
+    else if (cType === 'event') { end = cStart; }
+    else { end = shift(cStart, Math.max(1, Number(cDays)) - 1); }
+    const res = await fetch('/api/plans', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: cName.trim() || null, plan_type: cType, location: cLoc.trim() || null, start_date: start, end_date: end }) });
+    if (res.ok) { setShowCreate(false); setCName(''); setCLoc(''); setWeekStart(weekMonday(start)); }
   }
   async function saveRename(id) {
     await fetch(`/api/plans/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: renameVal }) });
@@ -120,6 +125,7 @@ export default function PlannerPage() {
   function onDragStart(e, payload) { e.dataTransfer.setData('text/plain', JSON.stringify(payload)); e.dataTransfer.effectAllowed = 'move'; }
   function onDrop(e, date) {
     e.preventDefault();
+    setDragOverDate(null);
     let p; try { p = JSON.parse(e.dataTransfer.getData('text/plain')); } catch { return; }
     if (p.type === 'lookbook') addLook(date, p.lookId);
     else if (p.type === 'placed' && p.fromDate !== date) moveLook(p.dayLookId, date);
@@ -144,8 +150,8 @@ export default function PlannerPage() {
       </div>
 
       <div style={{ marginTop: 10, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-        <button className="btn btn-ghost" onClick={() => setShowCreate(true)} style={{ padding: '7px 14px', fontSize: 13 }}>+ Plan a trip</button>
-        <span className="note" style={{ fontStyle: 'normal' }}>Drag a look between days, or onto a day from your Lookbook.</span>
+        <button className="btn btn-ghost" onClick={() => setShowCreate(true)} style={{ padding: '7px 14px', fontSize: 13 }}>+ Plan</button>
+        <span className="note" style={{ fontStyle: 'normal' }}>Drag a look between days, or tap a look to move it.</span>
       </div>
 
       {data.trips.map((t) => (
@@ -157,6 +163,7 @@ export default function PlannerPage() {
             </>
           ) : (
             <>
+              <span className="note" style={{ fontStyle: 'normal', textTransform: 'capitalize', border: '0.5px solid var(--line)', borderRadius: 999, padding: '2px 9px' }}>{t.type || 'trip'}</span>
               <span style={{ fontFamily: 'Georgia, serif', fontSize: 16 }}>{t.name}</span>
               <span className="note" style={{ fontStyle: 'normal' }}>{t.location ? `${t.location} · ` : ''}{fmtRange(t.start_date, t.end_date)}</span>
               <button onClick={() => { setRenaming(t.id); setRenameVal(t.name); }} className="note" style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--gold)' }}>rename</button>
@@ -170,11 +177,13 @@ export default function PlannerPage() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 8, minWidth: 760 }}>
           {data.days.map((d) => {
             const inTrip = !!d.trip_id;
+            const isOver = dragOverDate === d.date;
             return (
               <div key={d.date}
-                onDragOver={(e) => e.preventDefault()}
+                onDragOver={(e) => { e.preventDefault(); if (dragOverDate !== d.date) setDragOverDate(d.date); }}
+                onDragLeave={() => { if (dragOverDate === d.date) setDragOverDate(null); }}
                 onDrop={(e) => onDrop(e, d.date)}
-                style={{ background: inTrip ? 'var(--card)' : 'transparent', border: inTrip ? '1px solid var(--line)' : '1px solid transparent', borderRadius: 8, padding: 8, minHeight: 200 }}>
+                style={{ background: isOver ? 'var(--card)' : (inTrip ? 'var(--card)' : 'transparent'), border: isOver ? '2px solid var(--gold)' : (inTrip ? '1px solid var(--line)' : '1px solid transparent'), borderRadius: 8, padding: isOver ? 7 : 8, minHeight: 200 }}>
                 <div style={{ textAlign: 'center', marginBottom: 8 }}>
                   <div style={{ fontWeight: 600, fontSize: 13 }}>{d.day_name.slice(0, 3)}</div>
                   <div className="note" style={{ fontStyle: 'normal' }}>{fmtDate(d.date)}</div>
@@ -214,15 +223,43 @@ export default function PlannerPage() {
       {showCreate && (
         <div style={overlay} onClick={() => setShowCreate(false)}>
           <div style={sheet} onClick={(e) => e.stopPropagation()}>
-            <p style={{ fontFamily: 'Georgia, serif', fontSize: 19, margin: '0 0 14px' }}>Plan a trip</p>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-              <div className="field" style={{ margin: 0 }}><label>Location</label><input value={cLoc} onChange={(e) => setCLoc(e.target.value)} placeholder="Florence…" style={inputStyle} /></div>
-              <div className="field" style={{ margin: 0 }}><label>Name (optional)</label><input value={cName} onChange={(e) => setCName(e.target.value)} placeholder="defaults to the place" style={inputStyle} /></div>
-              <div className="field" style={{ margin: 0 }}><label>Start</label><input type="date" value={cStart} onChange={(e) => setCStart(e.target.value)} style={inputStyle} /></div>
-              <div className="field" style={{ margin: 0 }}><label>Days</label><input type="number" min="1" max="14" value={cDays} onChange={(e) => setCDays(Number(e.target.value))} style={inputStyle} /></div>
+            <p style={{ fontFamily: 'Georgia, serif', fontSize: 19, margin: '0 0 12px' }}>Plan a…</p>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+              {[['trip', 'Trip'], ['week', 'Week'], ['event', 'Event']].map(([v, lab]) => {
+                const on = cType === v;
+                return (
+                  <button key={v} onClick={() => setCType(v)}
+                    style={{ flex: 1, fontSize: 14, padding: '8px 0', borderRadius: 4, cursor: 'pointer',
+                      border: on ? '1px solid var(--gold)' : '1px solid var(--line)',
+                      background: on ? 'var(--card)' : '#fff', color: on ? 'var(--gold)' : 'var(--ink)' }}>
+                    {lab}
+                  </button>
+                );
+              })}
             </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+              <div className="field" style={{ margin: 0 }}>
+                <label>{cType === 'event' ? 'Event name' : 'Name (optional)'}</label>
+                <input value={cName} onChange={(e) => setCName(e.target.value)} placeholder={cType === 'event' ? "Sarah's wedding" : cType === 'week' ? 'optional' : 'defaults to the place'} style={inputStyle} />
+              </div>
+              <div className="field" style={{ margin: 0 }}>
+                <label>Location {cType === 'week' ? '(optional)' : ''}</label>
+                <input value={cLoc} onChange={(e) => setCLoc(e.target.value)} placeholder={cType === 'trip' ? 'Florence…' : 'blank = home'} style={inputStyle} />
+              </div>
+              <div className="field" style={{ margin: 0 }}>
+                <label>{cType === 'event' ? 'Date' : 'Start'}</label>
+                <input type="date" value={cStart} onChange={(e) => setCStart(e.target.value)} style={inputStyle} />
+              </div>
+              {cType === 'trip' && (
+                <div className="field" style={{ margin: 0 }}><label>Days</label><input type="number" min="1" max="14" value={cDays} onChange={(e) => setCDays(Number(e.target.value))} style={inputStyle} /></div>
+              )}
+            </div>
+            {cType === 'week' && <p className="note" style={{ marginTop: 8 }}>Covers the 7 days of that week.</p>}
+            {cType === 'event' && <p className="note" style={{ marginTop: 8 }}>A single day you can style for.</p>}
+
             <div style={{ marginTop: 16, display: 'flex', gap: 10 }}>
-              <button className="btn" onClick={createTrip}>Create trip</button>
+              <button className="btn" onClick={createPlan}>Create</button>
               <button className="btn btn-ghost" onClick={() => setShowCreate(false)}>Cancel</button>
             </div>
           </div>
@@ -272,6 +309,19 @@ export default function PlannerPage() {
                     </div>
                   )}
                   {detail.look.gap && <p className="note" style={{ marginTop: 10 }}>Missing piece · {detail.look.gap}{detail.look.gap_workaround ? ` — for now, ${detail.look.gap_workaround}` : ''}</p>}
+                  {detail.dayLookId && (
+                    <div style={{ marginTop: 14 }}>
+                      <div className="note" style={{ fontStyle: 'normal', marginBottom: 6 }}>Move to a day this week</div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                        {data.days.map((dd) => (
+                          <button key={dd.date} onClick={() => { moveLook(detail.dayLookId, dd.date); setDetail({ open: false, loading: false, look: null, dayLookId: null }); }}
+                            style={{ fontSize: 12, padding: '5px 10px', borderRadius: 999, border: '1px solid var(--line)', background: '#fff', cursor: 'pointer', color: 'var(--ink)' }}>
+                            {dd.day_name.slice(0, 3)} {fmtDate(dd.date)}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   <div style={{ marginTop: 14, display: 'flex', gap: 10 }}>
                     {detail.dayLookId && <button className="btn btn-ghost" onClick={() => removeLook(detail.dayLookId)} style={{ padding: '8px 16px', fontSize: 13, color: 'var(--bad)' }}>Remove from day</button>}
                     <button className="btn btn-ghost" onClick={() => setDetail({ open: false, loading: false, look: null, dayLookId: null })} style={{ padding: '8px 16px', fontSize: 13 }}>Close</button>
