@@ -22,8 +22,8 @@ export async function POST(request) {
 
     const supabaseAdmin = getSupabaseAdmin();
 
-    // Load wardrobe + settings together.
-    const [wardrobeRes, settingsRes] = await Promise.all([
+    // Load wardrobe + settings + loved-look references together.
+    const [wardrobeRes, settingsRes, tasteRes] = await Promise.all([
       supabaseAdmin
         .from('wardrobe_items')
         .select('*')
@@ -34,6 +34,10 @@ export async function POST(request) {
         .select('*')
         .eq('user_id', PHASE1_USER_ID)
         .maybeSingle(),
+      supabaseAdmin
+        .from('taste_references')
+        .select('read, love_part')
+        .eq('user_id', PHASE1_USER_ID),
     ]);
 
     if (wardrobeRes.error) {
@@ -45,9 +49,25 @@ export async function POST(request) {
     }
 
     const settings = settingsRes.data || {};
-    // Fold styling guidance + playbook into the signature the engine reads.
+
+    // Turn each loved look's read into a short reference line for the engine.
+    const tasteRefs = (tasteRes?.data || [])
+      .map((t) => {
+        const r = t.read || {};
+        const bits = [r.summary, r.palette, r.proportion].filter(Boolean);
+        let s = bits.join('; ');
+        if (t.love_part && t.love_part !== 'the whole vibe') s += ` (they love ${t.love_part})`;
+        return s.trim();
+      })
+      .filter(Boolean);
+
+    const baseSig = settings.style_signature || {};
+    const existingRefs = Array.isArray(baseSig.references) ? baseSig.references : [];
+
+    // Fold styling guidance + playbook + loved-look reads into the signature.
     const signature = {
-      ...(settings.style_signature || {}),
+      ...baseSig,
+      references: [...existingRefs, ...tasteRefs],
       styling_rules: settings.styling_rules || null,
       proportion_playbook: settings.proportion_playbook || null,
     };
