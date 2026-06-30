@@ -29,7 +29,7 @@ export async function POST(request) {
       .insert({
         user_id: PHASE1_USER_ID,
         plan_name: name,
-        plan_type: 'trip',
+        plan_type: b.plan_type || 'trip',
         location: b.location?.trim() || null,
         start_date: b.start_date,
         end_date: b.end_date || b.start_date,
