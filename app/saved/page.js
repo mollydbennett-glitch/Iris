@@ -7,6 +7,7 @@ export default function SavedPage() {
   const [outfits, setOutfits] = useState(null);
   const [error, setError] = useState('');
   const [removingId, setRemovingId] = useState(null);
+  const [filter, setFilter] = useState('All');
 
   useEffect(() => {
     (async () => {
@@ -56,44 +57,62 @@ export default function SavedPage() {
         </p>
       )}
 
-      {outfits && outfits.length > 0 && (
-        <div style={{ marginTop: 24, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 30 }}>
-          {outfits.map((o, idx) => (
-            <div key={o.id || idx}>
-              <FlatLay outfit={o} idx={idx} />
-              <div style={{ padding: '14px 4px 0' }}>
-                {(o.occasion || o.weather_context) && (
-                  <p className="note" style={{ marginTop: 0, fontStyle: 'normal' }}>
-                    {[o.occasion, o.weather_context].filter(Boolean).join(' · ')}
-                  </p>
-                )}
-                {o.why && <p style={{ fontSize: 14, lineHeight: 1.55, marginTop: 8 }}>{o.why}</p>}
-                {o.styling_tip && (
-                  <p style={{ fontSize: 13.5, lineHeight: 1.55, marginTop: 8 }}>
-                    <strong style={{ color: 'var(--gold)' }}>Styling tip · </strong>{o.styling_tip}
-                  </p>
-                )}
-                {o.gap && (
-                  <p className="note" style={{ marginTop: 10 }}>
-                    Missing piece · you don’t own {o.gap}
-                    {o.gap_workaround ? ` — for now, ${o.gap_workaround}` : ''}
-                  </p>
-                )}
-                <div style={{ marginTop: 12 }}>
-                  <button
-                    className="btn btn-ghost"
-                    onClick={() => remove(o.id)}
-                    disabled={removingId === o.id}
-                    style={{ padding: '8px 16px', fontSize: 13 }}
-                  >
-                    {removingId === o.id ? 'Removing…' : '♥ Remove'}
-                  </button>
-                </div>
+      {outfits && outfits.length > 0 && (() => {
+        const occasions = Array.from(new Set(outfits.map((o) => o.occasion).filter(Boolean)));
+        const chips = ['All', ...occasions];
+        const visible = filter === 'All' ? outfits : outfits.filter((o) => o.occasion === filter);
+        return (
+          <>
+            {occasions.length > 0 && (
+              <div style={{ marginTop: 16, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {chips.map((c) => {
+                  const on = c === filter;
+                  return (
+                    <button key={c} onClick={() => setFilter(c)}
+                      style={{ fontSize: 13, padding: '5px 13px', borderRadius: 999, cursor: 'pointer',
+                        border: on ? '1px solid var(--gold)' : '1px solid var(--line)',
+                        background: on ? 'var(--card)' : '#fff', color: on ? 'var(--gold)' : 'var(--ink-soft)' }}>
+                      {c}
+                    </button>
+                  );
+                })}
               </div>
+            )}
+            <div style={{ marginTop: 20, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 30 }}>
+              {visible.map((o, idx) => (
+                <div key={o.id || idx}>
+                  <FlatLay outfit={o} idx={idx} />
+                  <div style={{ padding: '14px 4px 0' }}>
+                    {(o.occasion || o.weather_context) && (
+                      <p className="note" style={{ marginTop: 0, fontStyle: 'normal' }}>
+                        {[o.occasion, o.weather_context].filter(Boolean).join(' · ')}
+                      </p>
+                    )}
+                    {o.why && <p style={{ fontSize: 14, lineHeight: 1.55, marginTop: 8 }}>{o.why}</p>}
+                    {o.styling_tip && (
+                      <p style={{ fontSize: 13.5, lineHeight: 1.55, marginTop: 8 }}>
+                        <strong style={{ color: 'var(--gold)' }}>Styling tip · </strong>{o.styling_tip}
+                      </p>
+                    )}
+                    {o.gap && (
+                      <p className="note" style={{ marginTop: 10 }}>
+                        Missing piece · you don’t own {o.gap}
+                        {o.gap_workaround ? ` — for now, ${o.gap_workaround}` : ''}
+                      </p>
+                    )}
+                    <div style={{ marginTop: 12 }}>
+                      <button className="btn btn-ghost" onClick={() => remove(o.id)} disabled={removingId === o.id}
+                        style={{ padding: '8px 16px', fontSize: 13 }}>
+                        {removingId === o.id ? 'Removing…' : '♥ Remove'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-      )}
+          </>
+        );
+      })()}
     </div>
   );
 }
