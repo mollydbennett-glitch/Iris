@@ -15,6 +15,9 @@ export default function ConsideringPage() {
   const [price, setPrice] = useState('');
   const [source, setSource] = useState('');
   const [adding, setAdding] = useState(false);
+  const [urlInput, setUrlInput] = useState('');
+  const [capturing, setCapturing] = useState(false);
+  const [showPhoto, setShowPhoto] = useState(false);
   const fileRef = useRef(null);
 
   const [panel, setPanel] = useState({ open: false, item: null, loading: false, data: null });
@@ -48,6 +51,24 @@ export default function ConsideringPage() {
     } finally { setAdding(false); }
   }
 
+  async function captureUrl() {
+    const u = urlInput.trim();
+    if (!u) return;
+    setCapturing(true);
+    setError('');
+    try {
+      const res = await fetch('/api/considering/capture', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: u }) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not read that link');
+      setUrlInput('');
+      await load();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setCapturing(false);
+    }
+  }
+
   async function weigh(item) {
     setPanel({ open: true, item, loading: true, data: null });
     try {
@@ -78,19 +99,35 @@ export default function ConsideringPage() {
       <p className="lede">Pieces you’re weighing. Iris tells you to buy or cry, by trying to build looks with your closet.</p>
 
       <div style={{ marginTop: 18, padding: 16, background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 4, maxWidth: 600 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 12, alignItems: 'end' }}>
-          <div className="field" style={{ margin: 0 }}>
-            <label>Photo</label>
-            <input ref={fileRef} type="file" accept="image/*" onChange={(e) => setFile(e.target.files?.[0] || null)} style={{ fontSize: 13 }} />
+        <label className="note" style={{ fontStyle: 'normal', display: 'block', marginBottom: 6 }}>Paste a product link</label>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <input value={urlInput} onChange={(e) => setUrlInput(e.target.value)} placeholder="https://…" style={{ ...inputStyle, flex: 1 }} />
+          <button className="btn" onClick={captureUrl} disabled={!urlInput.trim() || capturing}>{capturing ? <><span className="spinner" /> Reading…</> : 'Add'}</button>
+        </div>
+        <p className="note" style={{ marginTop: 10 }}>
+          On a shopping page already? <a href="/bookmarklet" style={{ color: 'var(--gold)' }}>Install the Iris button</a> to save in one click.
+          {' · '}
+          <button onClick={() => setShowPhoto(!showPhoto)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--gold)', padding: 0, fontSize: 'inherit' }}>
+            {showPhoto ? 'hide photo upload' : 'add by photo instead'}
+          </button>
+        </p>
+
+        {showPhoto && (
+          <div style={{ marginTop: 12, borderTop: '1px solid var(--line)', paddingTop: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 12, alignItems: 'end' }}>
+              <div className="field" style={{ margin: 0 }}>
+                <label>Photo</label>
+                <input ref={fileRef} type="file" accept="image/*" onChange={(e) => setFile(e.target.files?.[0] || null)} style={{ fontSize: 13 }} />
+              </div>
+              <div className="field" style={{ margin: 0 }}><label>Name</label><input value={name} onChange={(e) => setName(e.target.value)} placeholder="Square-toe flat" style={inputStyle} /></div>
+              <div className="field" style={{ margin: 0 }}><label>Price</label><input value={price} onChange={(e) => setPrice(e.target.value)} placeholder="180" style={inputStyle} /></div>
+              <div className="field" style={{ margin: 0 }}><label>From</label><input value={source} onChange={(e) => setSource(e.target.value)} placeholder="Everlane" style={inputStyle} /></div>
+            </div>
+            <div style={{ marginTop: 12 }}>
+              <button className="btn btn-ghost" onClick={add} disabled={!file || adding}>{adding ? <><span className="spinner" /> Reading…</> : 'Add by photo'}</button>
+            </div>
           </div>
-          <div className="field" style={{ margin: 0 }}><label>Name</label><input value={name} onChange={(e) => setName(e.target.value)} placeholder="Square-toe flat" style={inputStyle} /></div>
-          <div className="field" style={{ margin: 0 }}><label>Price</label><input value={price} onChange={(e) => setPrice(e.target.value)} placeholder="180" style={inputStyle} /></div>
-          <div className="field" style={{ margin: 0 }}><label>From</label><input value={source} onChange={(e) => setSource(e.target.value)} placeholder="Everlane" style={inputStyle} /></div>
-        </div>
-        <div style={{ marginTop: 12 }}>
-          <button className="btn" onClick={add} disabled={!file || adding}>{adding ? <><span className="spinner" /> Reading…</> : 'Add to considering'}</button>
-        </div>
-        <p className="note" style={{ marginTop: 8 }}>A save-from-web bookmarklet is coming next.</p>
+        )}
       </div>
 
       {error && <p className="status err" style={{ display: 'block', marginTop: 16 }}>{error}</p>}
