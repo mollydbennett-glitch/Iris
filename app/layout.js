@@ -16,6 +16,7 @@ export default function RootLayout({ children }) {
             <a href="/saved" className="navlink">Lookbook</a>
             <a href="/planner" className="navlink">Planner</a>
             <a href="/wardrobe" className="navlink">Wardrobe</a>
+            <a href="/considering" className="navlink">Considering</a>
             <a href="/upload" className="navlink">Add items</a>
             <a href="/settings" className="navlink">Settings</a>
           </div>
