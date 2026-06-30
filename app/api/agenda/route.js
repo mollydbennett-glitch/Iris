@@ -97,7 +97,7 @@ export async function GET(request) {
     // Trips overlapping the visible window, for the band(s) above the grid.
     const trips = allTrips
       .filter((t) => t.start_date && t.start_date <= lastDate && (t.end_date || t.start_date) >= start)
-      .map((t) => ({ id: t.id, name: t.plan_name, location: t.location, start_date: t.start_date, end_date: t.end_date }));
+      .map((t) => ({ id: t.id, name: t.plan_name, type: t.plan_type, location: t.location, start_date: t.start_date, end_date: t.end_date }));
 
     return NextResponse.json({ start, days, trips, default_location: defaultLocation });
   } catch (e) {
