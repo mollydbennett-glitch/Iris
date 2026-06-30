@@ -19,6 +19,12 @@ export async function POST(request) {
   try {
     const formData = await request.formData();
     const file = formData.get('image');
+    const status = formData.get('status') || 'owned';
+    const name = formData.get('name') || null;
+    const priceRaw = formData.get('price');
+    const price = priceRaw ? Number(priceRaw) || null : null;
+    const source = formData.get('source') || null;
+    const sourceUrl = formData.get('source_url') || null;
 
     if (!file || typeof file === 'string') {
       return NextResponse.json({ error: 'No image provided.' }, { status: 400 });
@@ -110,6 +116,11 @@ export async function POST(request) {
         user_id: PHASE1_USER_ID,
         image_url: imageUrl,
         cutout_url: cutoutUrl,
+        status,
+        name,
+        price,
+        source,
+        source_url: sourceUrl,
         category: tags.category ?? null,
         subcategory: tags.subcategory ?? null,
         color: tags.color ?? null,
