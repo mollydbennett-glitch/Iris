@@ -34,10 +34,10 @@ export async function POST(request) {
     if (!source && url) source = hostBrand(url);
     if (!imageUrl) return NextResponse.json({ error: 'No image found on that page.' }, { status: 400, headers: CORS });
 
-    const { publicUrl, base64 } = await storeRemoteImage(imageUrl, 'considering');
+    const { publicUrl, base64, mediaType } = await storeRemoteImage(imageUrl, 'considering');
 
     let tags = {};
-    try { tags = await tagClothingImage(base64, 'image/jpeg'); } catch (e) { tags = {}; }
+    try { tags = await tagClothingImage(base64, mediaType); } catch (e) { tags = {}; }
 
     const db = getSupabaseAdmin();
     const { data: item, error } = await db
