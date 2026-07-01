@@ -22,9 +22,9 @@ export async function POST(request) {
     }
     if (!imageUrl) return NextResponse.json({ error: 'No image found on that page.' }, { status: 400, headers: CORS });
 
-    const { publicUrl, base64 } = await storeRemoteImage(imageUrl, 'taste');
+    const { publicUrl, base64, mediaType } = await storeRemoteImage(imageUrl, 'taste');
     let read = null;
-    try { read = await readTasteImage(base64, 'image/jpeg'); } catch (e) { read = { summary: '', vibe: [] }; }
+    try { read = await readTasteImage(base64, mediaType); } catch (e) { read = { summary: '', vibe: [] }; }
 
     const db = getSupabaseAdmin();
     const { data, error } = await db
