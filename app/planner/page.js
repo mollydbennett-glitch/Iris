@@ -37,7 +37,7 @@ export default function PlannerPage() {
   const [loading, setLoading] = useState(true);
 
   const [picker, setPicker] = useState({ open: false, date: null });
-  const [detail, setDetail] = useState({ open: false, loading: false, look: null, dayLookId: null });
+  const [detail, setDetail] = useState({ open: false, loading: false, look: null, dayLookId: null, date: null, worn: false });
   const [busyDate, setBusyDate] = useState(null);
 
   const [showCreate, setShowCreate] = useState(false);
@@ -96,13 +96,21 @@ export default function PlannerPage() {
       reload();
     } finally { setBusyDate(null); }
   }
-  async function openDetail(lookId, dayLookId) {
-    setDetail({ open: true, loading: true, look: null, dayLookId });
+  async function markWorn(date, lookId) {
+    await fetch('/api/wear', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ saved_outfit_id: lookId, worn_on: date }) });
+    reload();
+  }
+  async function unmarkWorn(date, lookId) {
+    await fetch('/api/wear', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ saved_outfit_id: lookId, worn_on: date }) });
+    reload();
+  }
+  async function openDetail(lookId, dayLookId, date, worn) {
+    setDetail({ open: true, loading: true, look: null, dayLookId, date: date || null, worn: !!worn });
     try {
       const res = await fetch(`/api/outfits/${lookId}`);
       const d = await res.json();
-      setDetail({ open: true, loading: false, look: d.look, dayLookId });
-    } catch { setDetail({ open: false, loading: false, look: null, dayLookId: null }); }
+      setDetail((prev) => ({ ...prev, loading: false, look: d.look }));
+    } catch { setDetail({ open: false, loading: false, look: null, dayLookId: null, date: null, worn: false }); }
   }
   async function createPlan() {
     let start = cStart, end;
@@ -195,12 +203,21 @@ export default function PlannerPage() {
                     <div key={sl.day_look_id} draggable
                       onDragStart={(e) => onDragStart(e, { type: 'placed', dayLookId: sl.day_look_id, fromDate: d.date })}
                       style={{ position: 'relative', cursor: 'grab' }}>
-                      <div onClick={() => openDetail(sl.look.id, sl.day_look_id)} style={{ cursor: 'pointer' }}>
+                      <div onClick={() => openDetail(sl.look.id, sl.day_look_id, d.date, sl.worn)} style={{ cursor: 'pointer' }}>
                         <FlatLay outfit={sl.look} idx={0} />
                       </div>
                       <button onClick={(e) => { e.stopPropagation(); removeLook(sl.day_look_id); }} aria-label="Remove"
                         style={{ position: 'absolute', top: 3, right: 3, width: 18, height: 18, lineHeight: '16px', textAlign: 'center', borderRadius: '50%', border: 'none', background: 'rgba(255,255,255,0.9)', color: 'var(--ink-soft)', cursor: 'pointer', fontSize: 12 }}>×</button>
-                      <div className="note" style={{ fontStyle: 'normal', textAlign: 'center', marginTop: 2 }}>{sl.slot_label}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 2 }}>
+                        <span className="note" style={{ fontStyle: 'normal', marginTop: 0 }}>{sl.slot_label}</span>
+                        {sl.worn ? (
+                          <button onClick={(e) => { e.stopPropagation(); unmarkWorn(d.date, sl.look.id); }} title="Tap to undo"
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: 'var(--gold)', padding: 0 }}>Worn ✓</button>
+                        ) : (
+                          <button onClick={(e) => { e.stopPropagation(); markWorn(d.date, sl.look.id); }}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: 'var(--ink-soft)', padding: 0 }}>Mark worn</button>
+                        )}
+                      </div>
                     </div>
                   ))}
 
@@ -322,7 +339,15 @@ export default function PlannerPage() {
                       </div>
                     </div>
                   )}
-                  <div style={{ marginTop: 14, display: 'flex', gap: 10 }}>
+                  <div style={{ marginTop: 14, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                    {detail.date && !detail.worn && (
+                      <button className="btn" onClick={() => { markWorn(detail.date, detail.look.id); setDetail((prev) => ({ ...prev, worn: true })); }}
+                        style={{ padding: '8px 16px', fontSize: 13 }}>Mark as worn</button>
+                    )}
+                    {detail.date && detail.worn && (
+                      <button className="btn btn-ghost" onClick={() => { unmarkWorn(detail.date, detail.look.id); setDetail((prev) => ({ ...prev, worn: false })); }}
+                        style={{ padding: '8px 16px', fontSize: 13, color: 'var(--gold)' }}>Worn ✓ · Undo</button>
+                    )}
                     {detail.dayLookId && <button className="btn btn-ghost" onClick={() => removeLook(detail.dayLookId)} style={{ padding: '8px 16px', fontSize: 13, color: 'var(--bad)' }}>Remove from day</button>}
                     <button className="btn btn-ghost" onClick={() => setDetail({ open: false, loading: false, look: null, dayLookId: null })} style={{ padding: '8px 16px', fontSize: 13 }}>Close</button>
                   </div>
