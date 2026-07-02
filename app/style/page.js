@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { FlatLay } from '@/components/FlatLay';
+import { RateLook } from '@/components/RateLook';
 
 const OCCASIONS = ['Everyday', 'Work', 'Dinner', 'Date night', 'Weekend', 'Event / party', 'Workout', 'Trip'];
 
@@ -152,6 +153,7 @@ export default function StylePage() {
                     >
                       {isSaved ? '♥ Loved' : '♡ Love'}
                     </button>
+                    <RateLook outfitId={o.id} initialRatings={null} initialNote="" />
                   </div>
                 </div>
               </div>
