@@ -45,6 +45,8 @@ export async function GET() {
       occasion: r.occasion || null,
       weather_context: r.weather_context || null,
       created_at: r.created_at,
+      ratings: { proportions: r.rating_proportions, aesthetic: r.rating_aesthetic, cohesion: r.rating_cohesion, style: r.rating_style },
+      user_notes: r.user_notes || '',
       items: (r.item_ids || []).map((id) => byId.get(id)).filter(Boolean),
     }));
 
