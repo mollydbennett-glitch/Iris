@@ -31,6 +31,8 @@ export async function GET(request, { params }) {
         gap_workaround: o.gap_workaround || null,
         occasion: o.occasion || null,
         is_favorite: o.is_favorite || false,
+        ratings: { proportions: o.rating_proportions, aesthetic: o.rating_aesthetic, cohesion: o.rating_cohesion, style: o.rating_style },
+        user_notes: o.user_notes || '',
         items,
       },
     });
