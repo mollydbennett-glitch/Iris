@@ -225,8 +225,17 @@ export default function WardrobePage() {
                 style={{ position: 'relative', background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 4, overflow: 'hidden', color: 'var(--ink)', display: 'block', cursor: 'pointer' }}>
                 <button type="button" onClick={(e) => removeItem(e, it)} title="Remove from wardrobe"
                   style={{ position: 'absolute', top: 8, right: 8, width: 26, height: 26, borderRadius: '50%', border: 'none', background: 'rgba(26,23,20,0.6)', color: '#fff', fontSize: 15, lineHeight: 1, cursor: 'pointer', zIndex: 2 }}>×</button>
-                <div style={{ width: '100%', aspectRatio: '3 / 4', background: hasCutout ? '#fff' : 'var(--gold-soft)' }}>
+                <div style={{ position: 'relative', width: '100%', aspectRatio: '3 / 4', background: hasCutout ? '#fff' : 'var(--gold-soft)' }}>
                   <img src={src} alt="" style={{ width: '100%', height: '100%', objectFit: hasCutout ? 'contain' : 'cover', padding: hasCutout ? 10 : 0, display: 'block' }} />
+                  <button type="button" onClick={(e) => toggleWornToday(e, it)} disabled={wearBusyId === it.id}
+                    title={wornToday(it) ? 'Worn today. Tap to undo' : 'Wore this today'}
+                    style={{ position: 'absolute', bottom: 8, right: 8, width: 30, height: 30, borderRadius: '50%', cursor: 'pointer', fontSize: 14, lineHeight: 1, zIndex: 2,
+                      border: wornToday(it) ? '1px solid var(--gold)' : '1px solid var(--line)',
+                      background: wornToday(it) ? 'var(--gold)' : 'rgba(255,255,255,0.95)',
+                      color: wornToday(it) ? '#fff' : 'var(--ink-soft)',
+                      boxShadow: '0 1px 3px rgba(26,23,20,0.15)' }}>
+                    {wearBusyId === it.id ? '…' : '✓'}
+                  </button>
                 </div>
                 <div style={{ padding: '10px 12px 12px' }}>
                   <div style={{ fontFamily: 'Georgia, serif', fontSize: 15, textTransform: 'capitalize' }}>
@@ -241,13 +250,6 @@ export default function WardrobePage() {
                       {it.price > 0 && ` · $${it.price / it.wear_count < 10 ? (it.price / it.wear_count).toFixed(2) : Math.round(it.price / it.wear_count)}/wear`}
                     </div>
                   )}
-                  <div style={{ marginTop: 8 }}>
-                    <button type="button" onClick={(e) => toggleWornToday(e, it)} disabled={wearBusyId === it.id}
-                      style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: 12,
-                        color: wornToday(it) ? 'var(--gold)' : 'var(--ink-soft)' }}>
-                      {wearBusyId === it.id ? <span className="spinner" /> : wornToday(it) ? '✓ Worn today · undo' : 'Wore today'}
-                    </button>
-                  </div>
                   {seasons.length > 0 && (
                     <div style={{ marginTop: 7, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                       {seasons.map((s) => <span key={s} className="pill" style={{ marginRight: 0 }}>{s}</span>)}
