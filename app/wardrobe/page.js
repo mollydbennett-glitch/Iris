@@ -113,6 +113,38 @@ export default function WardrobePage() {
     if (firstError) setError(`Tighten failed — ${firstError}`);
   }
 
+  const todayISO = new Date().toISOString().slice(0, 10);
+  const [wearBusyId, setWearBusyId] = useState(null);
+  const wornToday = (it) => !!it.last_worn_at && it.last_worn_at.slice(0, 10) === todayISO;
+
+  // One tap on the card records today's wear; tapping again undoes it.
+  // After either call we refetch the list so the counts shown are the
+  // database's truth, not a local guess.
+  async function toggleWornToday(e, it) {
+    e.preventDefault();
+    e.stopPropagation();
+    setWearBusyId(it.id);
+    try {
+      const method = wornToday(it) ? 'DELETE' : 'POST';
+      const res = await fetch('/api/wear', {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ item_ids: [it.id], worn_on: todayISO }),
+      });
+      if (!res.ok) {
+        const d = await res.json();
+        throw new Error(d.error || 'Could not record the wear');
+      }
+      const listRes = await fetch('/api/wardrobe/items');
+      const listData = await listRes.json();
+      if (listRes.ok) setItems(listData.items);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setWearBusyId(null);
+    }
+  }
+
   async function removeItem(e, it) {
     e.preventDefault();
     e.stopPropagation();
@@ -206,8 +238,16 @@ export default function WardrobePage() {
                   {it.wear_count > 0 && (
                     <div style={{ fontSize: 11.5, color: 'var(--gold)', marginTop: 3 }}>
                       Worn {it.wear_count}× · last {new Date(it.last_worn_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                      {it.price > 0 && ` · $${it.price / it.wear_count < 10 ? (it.price / it.wear_count).toFixed(2) : Math.round(it.price / it.wear_count)}/wear`}
                     </div>
                   )}
+                  <div style={{ marginTop: 8 }}>
+                    <button type="button" onClick={(e) => toggleWornToday(e, it)} disabled={wearBusyId === it.id}
+                      style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: 12,
+                        color: wornToday(it) ? 'var(--gold)' : 'var(--ink-soft)' }}>
+                      {wearBusyId === it.id ? <span className="spinner" /> : wornToday(it) ? '✓ Worn today · undo' : 'Wore today'}
+                    </button>
+                  </div>
                   {seasons.length > 0 && (
                     <div style={{ marginTop: 7, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                       {seasons.map((s) => <span key={s} className="pill" style={{ marginRight: 0 }}>{s}</span>)}
