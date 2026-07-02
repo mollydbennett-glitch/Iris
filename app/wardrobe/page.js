@@ -203,6 +203,11 @@ export default function WardrobePage() {
                   <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 3, textTransform: 'capitalize' }}>
                     {[it.category, it.fabric].filter(Boolean).join(' · ')}
                   </div>
+                  {it.wear_count > 0 && (
+                    <div style={{ fontSize: 11.5, color: 'var(--gold)', marginTop: 3 }}>
+                      Worn {it.wear_count}× · last {new Date(it.last_worn_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                    </div>
+                  )}
                   {seasons.length > 0 && (
                     <div style={{ marginTop: 7, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                       {seasons.map((s) => <span key={s} className="pill" style={{ marginRight: 0 }}>{s}</span>)}
