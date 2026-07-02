@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getSupabaseAdmin, PHASE1_USER_ID } from '@/lib/supabase';
 import { getWeatherForDate } from '@/lib/weather';
 import { generateOutfits } from '@/lib/outfitEngine';
+import { summarizeRatedLooks } from '@/lib/claude';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -51,6 +52,64 @@ export async function POST(request) {
 
     const settings = settingsRes.data || {};
 
+    // Learned preferences from the user's yes/no ratings. Cached on
+    // user_settings; the summarization only reruns when new ratings have
+    // landed since the last summary, so generation stays fast. Learning is
+    // additive: if anything here fails, generation proceeds without it.
+    let learned = settings.learned_preferences || null;
+    try {
+      const { data: rated } = await supabaseAdmin
+        .from('saved_outfits')
+        .select('title, item_ids, user_notes, rating_proportions, rating_aesthetic, rating_cohesion, rating_style, rating_submitted_at')
+        .eq('user_id', PHASE1_USER_ID)
+        .not('rating_submitted_at', 'is', null)
+        .order('rating_submitted_at', { ascending: false })
+        .limit(40);
+
+      const ratedLooks = rated || [];
+      const newest = ratedLooks[0]?.rating_submitted_at || null;
+      const stale =
+        ratedLooks.length !== (settings.learned_preferences_rated_count || 0) ||
+        (newest && (!settings.learned_preferences_updated_at ||
+          new Date(newest) > new Date(settings.learned_preferences_updated_at)));
+
+      if (ratedLooks.length && stale) {
+        const itemById = new Map(wardrobeRes.data.map((it) => [it.id, it]));
+        const describe = (ids) => (ids || [])
+          .map((i) => {
+            const it = itemById.get(i);
+            if (!it) return null;
+            return [it.color?.primary, it.silhouette, it.subcategory || it.category].filter(Boolean).join(' ');
+          })
+          .filter(Boolean);
+        const verdictOf = (r) => {
+          const vals = ['rating_proportions', 'rating_aesthetic', 'rating_cohesion', 'rating_style']
+            .map((k) => Number(r[k]))
+            .filter((n) => !Number.isNaN(n) && n > 0);
+          if (!vals.length) return null;
+          const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
+          return avg >= 3.5 ? 'yes' : 'no';
+        };
+        const payload = ratedLooks
+          .map((r) => ({ verdict: verdictOf(r), title: r.title, pieces: describe(r.item_ids), note: r.user_notes || undefined }))
+          .filter((r) => r.verdict && r.pieces.length);
+
+        if (payload.length) {
+          learned = await summarizeRatedLooks(payload);
+          await supabaseAdmin
+            .from('user_settings')
+            .update({
+              learned_preferences: learned,
+              learned_preferences_rated_count: ratedLooks.length,
+              learned_preferences_updated_at: new Date().toISOString(),
+            })
+            .eq('user_id', PHASE1_USER_ID);
+        }
+      }
+    } catch (e) {
+      // never block styling on the learning pass
+    }
+
     // Turn each loved look's read into a short reference line for the engine.
     const tasteRefs = (tasteRes?.data || [])
       .map((t) => {
@@ -71,6 +130,7 @@ export async function POST(request) {
       references: [...existingRefs, ...tasteRefs],
       styling_rules: settings.styling_rules || null,
       proportion_playbook: settings.proportion_playbook || null,
+      learned_preferences: learned,
     };
     const useLocation = location || settings.default_location || '';
 
