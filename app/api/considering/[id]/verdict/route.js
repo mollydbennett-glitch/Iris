@@ -42,6 +42,7 @@ export async function POST(request, { params }) {
       references: [...(Array.isArray(baseSig.references) ? baseSig.references : []), ...tasteRefs],
       styling_rules: settings.styling_rules || null,
       proportion_playbook: settings.proportion_playbook || null,
+      learned_preferences: settings.learned_preferences || null,
     };
 
     const result = await evaluateItem({ wardrobe: owned, signature, item });
