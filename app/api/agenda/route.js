@@ -53,6 +53,20 @@ export async function GET(request) {
     const neededIds = new Set();
     for (const d of dates) for (const dl of looksByDate[d] || []) neededIds.add(dl.saved_outfit_id);
 
+    // Which looks were marked worn on which days in this window, so the
+    // Planner can show the worn state after a reload.
+    let wornKeys = new Set();
+    if (neededIds.size) {
+      const { data: wornRows } = await db
+        .from('wear_events')
+        .select('saved_outfit_id, worn_on')
+        .eq('user_id', PHASE1_USER_ID)
+        .in('saved_outfit_id', [...neededIds])
+        .gte('worn_on', start)
+        .lte('worn_on', lastDate);
+      wornKeys = new Set((wornRows || []).map((r) => `${r.worn_on}|${r.saved_outfit_id}`));
+    }
+
     let lookById = {};
     if (neededIds.size) {
       const { data: looks } = await db.from('saved_outfits').select('*').in('id', [...neededIds]);
@@ -82,7 +96,7 @@ export async function GET(request) {
       const w = weatherByDate[d];
       const looks = (looksByDate[d] || [])
         .sort((a, b) => a.position - b.position)
-        .map((dl) => ({ day_look_id: dl.id, slot_label: dl.slot_label || 'Look', look: lookById[dl.saved_outfit_id] || null }))
+        .map((dl) => ({ day_look_id: dl.id, slot_label: dl.slot_label || 'Look', worn: wornKeys.has(`${d}|${dl.saved_outfit_id}`), look: lookById[dl.saved_outfit_id] || null }))
         .filter((x) => x.look);
       return {
         date: d,
