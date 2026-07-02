@@ -46,6 +46,12 @@ export async function PATCH(request, { params }) {
       silhouette: body.silhouette ?? null,
       user_verified_tags: body,
     };
+    // Price is only touched when the request explicitly includes it, so older
+    // callers that PATCH tags without a price can never wipe one out.
+    if (body.price !== undefined) {
+      const n = Number(body.price);
+      update.price = body.price === null || body.price === '' || Number.isNaN(n) ? null : n;
+    }
 
     const supabaseAdmin = getSupabaseAdmin();
     const { data: item, error } = await supabaseAdmin
