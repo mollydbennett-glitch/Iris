@@ -8,6 +8,38 @@ export default function SavedPage() {
   const [error, setError] = useState('');
   const [removingId, setRemovingId] = useState(null);
   const [filter, setFilter] = useState('All');
+  const [wearBusyId, setWearBusyId] = useState(null);
+  const [wornIds, setWornIds] = useState(new Set());
+
+  const todayISO = new Date().toISOString().slice(0, 10);
+
+  // Wore this: records today's wear for every item in the look in one tap.
+  // Tapping again undoes it. Same idempotent endpoint the Planner uses, so
+  // marking here and in the Planner on the same day never double-counts.
+  async function toggleWore(o) {
+    setWearBusyId(o.id);
+    try {
+      const worn = wornIds.has(o.id);
+      const res = await fetch('/api/wear', {
+        method: worn ? 'DELETE' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ saved_outfit_id: o.id, worn_on: todayISO }),
+      });
+      if (!res.ok) {
+        const d = await res.json();
+        throw new Error(d.error || 'Could not record the wear');
+      }
+      setWornIds((prev) => {
+        const next = new Set(prev);
+        if (worn) next.delete(o.id); else next.add(o.id);
+        return next;
+      });
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setWearBusyId(null);
+    }
+  }
 
   useEffect(() => {
     (async () => {
@@ -100,7 +132,12 @@ export default function SavedPage() {
                         {o.gap_workaround ? ` — for now, ${o.gap_workaround}` : ''}
                       </p>
                     )}
-                    <div style={{ marginTop: 12 }}>
+                    <div style={{ marginTop: 12, display: 'flex', gap: 10, alignItems: 'center' }}>
+                      <button className="btn btn-ghost" onClick={() => toggleWore(o)} disabled={wearBusyId === o.id}
+                        style={{ padding: '8px 16px', fontSize: 13, color: wornIds.has(o.id) ? 'var(--gold)' : undefined,
+                          borderColor: wornIds.has(o.id) ? 'var(--gold)' : undefined }}>
+                        {wearBusyId === o.id ? 'Recording…' : wornIds.has(o.id) ? '✓ Worn today · undo' : 'Wore this'}
+                      </button>
                       <button className="btn btn-ghost" onClick={() => remove(o.id)} disabled={removingId === o.id}
                         style={{ padding: '8px 16px', fontSize: 13 }}>
                         {removingId === o.id ? 'Removing…' : '♥ Remove'}
