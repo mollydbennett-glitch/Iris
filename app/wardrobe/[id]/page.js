@@ -56,6 +56,7 @@ export default function ItemDetailPage() {
       season: item.season || { spring: false, summer: false, fall: false, winter: false },
       styleVibe: Array.isArray(item.style_vibe) ? item.style_vibe.join(', ') : '',
       notes: item.ai_tags?.notes || '',
+      price: item.price ?? '',
       wearCount: item.wear_count || 0,
       lastWornAt: item.last_worn_at || null,
     };
@@ -128,6 +129,7 @@ export default function ItemDetailPage() {
       silhouette: it.silhouette,
       season: it.season,
       style_vibe: it.styleVibe.split(',').map((s) => s.trim()).filter(Boolean),
+      price: it.price === '' ? null : Number(it.price),
     };
     try {
       const res = await fetch(`/api/wardrobe/items/${id}`, {
@@ -195,7 +197,7 @@ export default function ItemDetailPage() {
           <div style={{ marginTop: 14 }}>
             <div className="note" style={{ fontStyle: 'normal', marginTop: 0 }}>
               {it.wearCount > 0
-                ? `Worn ${it.wearCount} time${it.wearCount === 1 ? '' : 's'} · last worn ${new Date(it.lastWornAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`
+                ? `Worn ${it.wearCount} time${it.wearCount === 1 ? '' : 's'} · last worn ${new Date(it.lastWornAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}${Number(it.price) > 0 ? ` · $${Number(it.price) / it.wearCount < 10 ? (Number(it.price) / it.wearCount).toFixed(2) : Math.round(Number(it.price) / it.wearCount)} per wear` : ''}`
                 : 'No wears recorded yet.'}
             </div>
             <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -259,6 +261,10 @@ export default function ItemDetailPage() {
           <div className="field">
             <label>Style vibe (comma separated)</label>
             <input value={it.styleVibe} onChange={(e) => set({ styleVibe: e.target.value })} />
+          </div>
+          <div className="field">
+            <label>Price (what you paid, for cost per wear)</label>
+            <input type="number" min="0" step="0.01" value={it.price} onChange={(e) => set({ price: e.target.value })} placeholder="optional" />
           </div>
           {it.notes && <p className="note">Iris: {it.notes}</p>}
 
