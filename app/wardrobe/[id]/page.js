@@ -56,6 +56,8 @@ export default function ItemDetailPage() {
       season: item.season || { spring: false, summer: false, fall: false, winter: false },
       styleVibe: Array.isArray(item.style_vibe) ? item.style_vibe.join(', ') : '',
       notes: item.ai_tags?.notes || '',
+      wearCount: item.wear_count || 0,
+      lastWornAt: item.last_worn_at || null,
     };
   }
 
@@ -71,6 +73,30 @@ export default function ItemDetailPage() {
   function toggleSeason(key) {
     setIt((prev) => ({ ...prev, season: { ...prev.season, [key]: !prev.season[key] } }));
     setStatus('idle');
+  }
+
+  const [wearStatus, setWearStatus] = useState('idle'); // idle | saving | saved | already | error
+
+  async function wearToday() {
+    setWearStatus('saving');
+    try {
+      const res = await fetch('/api/wear', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ item_ids: [id] }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not record the wear');
+      if (data.recorded === 0) {
+        setWearStatus('already');
+      } else {
+        setIt((prev) => ({ ...prev, wearCount: (prev.wearCount || 0) + 1, lastWornAt: new Date().toISOString() }));
+        setWearStatus('saved');
+      }
+    } catch (err) {
+      setWearStatus('error');
+      setError(err.message);
+    }
   }
 
   async function rotate(degrees) {
@@ -164,6 +190,21 @@ export default function ItemDetailPage() {
             <button className="rotate-btn" onClick={() => rotate(270)} disabled={rotating} title="Rotate left">↺</button>
             <button className="rotate-btn" onClick={() => rotate(90)} disabled={rotating} title="Rotate right">↻</button>
             {rotating && <span className="spinner" />}
+          </div>
+
+          <div style={{ marginTop: 14 }}>
+            <div className="note" style={{ fontStyle: 'normal', marginTop: 0 }}>
+              {it.wearCount > 0
+                ? `Worn ${it.wearCount} time${it.wearCount === 1 ? '' : 's'} · last worn ${new Date(it.lastWornAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`
+                : 'No wears recorded yet.'}
+            </div>
+            <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 10 }}>
+              <button className="btn btn-ghost" onClick={wearToday} disabled={wearStatus === 'saving'} style={{ padding: '8px 14px', fontSize: 13 }}>
+                {wearStatus === 'saving' ? 'Recording…' : 'Wore this today'}
+              </button>
+              {wearStatus === 'saved' && <span className="status saved">✓ Recorded</span>}
+              {wearStatus === 'already' && <span className="note" style={{ fontStyle: 'normal', marginTop: 0 }}>Already marked for today.</span>}
+            </div>
           </div>
         </div>
 
