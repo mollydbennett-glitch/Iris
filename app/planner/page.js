@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { FlatLay } from '@/components/FlatLay';
+import { RateLook } from '@/components/RateLook';
 
 const ISO = (d) => d.toISOString().slice(0, 10);
 function weekMonday(dateStr) {
@@ -325,6 +326,7 @@ export default function PlannerPage() {
                       ))}
                     </div>
                   )}
+                  <RateLook key={detail.look.id} outfitId={detail.look.id} initialRatings={detail.look.ratings} initialNote={detail.look.user_notes} />
                   {detail.look.gap && <p className="note" style={{ marginTop: 10 }}>Missing piece · {detail.look.gap}{detail.look.gap_workaround ? ` — for now, ${detail.look.gap_workaround}` : ''}</p>}
                   {detail.dayLookId && (
                     <div style={{ marginTop: 14 }}>
