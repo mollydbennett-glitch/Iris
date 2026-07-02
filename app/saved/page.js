@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { FlatLay } from '@/components/FlatLay';
+import { RateLook } from '@/components/RateLook';
 
 export default function SavedPage() {
   const [outfits, setOutfits] = useState(null);
@@ -132,6 +133,7 @@ export default function SavedPage() {
                         {o.gap_workaround ? ` — for now, ${o.gap_workaround}` : ''}
                       </p>
                     )}
+                    <RateLook outfitId={o.id} initialRatings={o.ratings} initialNote={o.user_notes} />
                     <div style={{ marginTop: 12, display: 'flex', gap: 10, alignItems: 'center' }}>
                       <button className="btn btn-ghost" onClick={() => toggleWore(o)} disabled={wearBusyId === o.id}
                         style={{ padding: '8px 16px', fontSize: 13, color: wornIds.has(o.id) ? 'var(--gold)' : undefined,
